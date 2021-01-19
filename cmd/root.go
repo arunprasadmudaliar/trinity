@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/arunprasadmudaliar/trinity/cmd/run"
 	"github.com/arunprasadmudaliar/trinity/cmd/version"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -10,7 +11,7 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "trinity",
+	Use:   "ty",
 	Short: "Create Business workflows using Trinity",
 	Long:  ``,
 }
@@ -25,4 +26,5 @@ func Execute() {
 
 func init() {
 	rootCmd.AddCommand(version.Cmd)
+	rootCmd.AddCommand(run.Cmd)
 }
