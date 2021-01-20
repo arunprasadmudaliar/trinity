@@ -1,17 +1,17 @@
 package controller
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/arunprasadmudaliar/trinity/pkg/utils"
 	"github.com/sirupsen/logrus"
 
-	batchv1 "k8s.io/api/batch/v1"
-	batch "k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -26,16 +26,24 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-type event struct {
-	key          string
-	eventType    string
-	resourceType string
+type workflow struct {
+	key string
+	//name      string
+	action string
+	//namespace string
+	schedule string
 }
 
 type controller struct {
 	client   kubernetes.Interface
 	informer cache.SharedIndexInformer
 	queue    workqueue.RateLimitingInterface
+}
+
+type schedule struct {
+	Spec struct {
+		Schedule string
+	}
 }
 
 //Start fuction with start the controller
@@ -76,39 +84,35 @@ func Start(config string) {
 
 func newController(kc *kubernetes.Clientset, informer cache.SharedIndexInformer) *controller {
 	q := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	var event event
+	var wf workflow
 	var err error
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			event.key, err = cache.MetaNamespaceKeyFunc(obj)
-			event.eventType = "create"
+			wf.key, err = cache.MetaNamespaceKeyFunc(obj)
+			//wf.name = utils.GetObjectMetaData(obj).Name
+			wf.action = "create"
+			//wf.namespace = utils.GetObjectMetaData(obj).Namespace
 			if err == nil {
-				q.Add(event)
+				q.Add(wf)
 			}
 
-			cj, err := kc.BatchV1beta1().CronJobs("default").Create(context.Background(), cronJob(), metav1.CreateOptions{})
-			if err != nil {
-				logrus.WithError(err).Fatal("Failed to create cronjob")
-			}
-			logrus.Info(cj)
-
-			logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key)
+			//logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			event.key, err = cache.MetaNamespaceKeyFunc(old)
+			/* event.key, err = cache.MetaNamespaceKeyFunc(old)
 			event.eventType = "update"
 			if err == nil {
 				q.Add(event)
 			}
-			logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key)
+			logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key) */
 		},
 		DeleteFunc: func(obj interface{}) {
-			event.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			/* event.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			event.eventType = "delete"
 			if err == nil {
 				q.Add(event)
 			}
-			logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key)
+			logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key) */
 		},
 	})
 
@@ -124,7 +128,7 @@ func (c *controller) Run(stopper <-chan struct{}) {
 	defer utilruntime.HandleCrash() //this will handle panic and won't crash the process
 	defer c.queue.ShutDown()        //shutdown all workqueue and terminate all workers
 
-	logrus.Info("Starting Chronos...")
+	logrus.Info("Starting workflow controller...")
 
 	go c.informer.Run(stopper)
 
@@ -138,7 +142,7 @@ func (c *controller) Run(stopper <-chan struct{}) {
 	}
 
 	logrus.Info("synchronization complete!")
-	logrus.Info("Ready to process events")
+	//logrus.Info("")
 
 	wait.Until(c.runWorker, time.Second, stopper)
 }
@@ -156,7 +160,7 @@ func (c *controller) processNextItem() bool {
 		return false
 	}
 
-	err := c.processItem(e.(event))
+	err := c.processItem(e.(workflow))
 	if err == nil {
 		c.queue.Forget(e)
 		return true
@@ -164,47 +168,31 @@ func (c *controller) processNextItem() bool {
 	return true
 }
 
-func (c *controller) processItem(e event) error {
-	obj, _, err := c.informer.GetIndexer().GetByKey(e.key)
+func (c *controller) processItem(wf workflow) error {
+	obj, _, err := c.informer.GetIndexer().GetByKey(wf.key)
+
+	j, _ := obj.(*unstructured.Unstructured).MarshalJSON()
+	var schedule schedule
+	_ = json.Unmarshal(j, &schedule)
+
 	if err != nil {
-		return fmt.Errorf("Error fetching object with key %s from store: %v", e.key, err)
+		return fmt.Errorf("Error fetching object with key %s from store: %v", wf.key, err)
+	}
+
+	ns := strings.Split(wf.key, "/")[0]
+	name := strings.Split(wf.key, "/")[1]
+
+	switch wf.action {
+	case "create":
+		err := utils.CreateCron(c.client.(*kubernetes.Clientset), name, ns, schedule.Spec.Schedule)
+		if err != nil {
+			logrus.WithError(err).Errorf("Failed to create workflow:%s", name)
+			return err
+		}
+		logrus.Infof("Created cronjob %s scheduled to run at %s", name, schedule.Spec.Schedule)
 	}
 
 	//Use a switch clause instead and process the events based on the type
-	logrus.Infof("Chronos has processed 1 event of type [%s] for object [%s]", e.eventType, obj)
 
 	return nil
-}
-
-func cronJob() *batch.CronJob {
-
-	return &batch.CronJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mycron",
-			Namespace: "default",
-		},
-		Spec: batch.CronJobSpec{
-			Schedule: "*/1 * * * *",
-			JobTemplate: batch.JobTemplateSpec{
-				Spec: batchv1.JobSpec{
-					Template: v1.PodTemplateSpec{
-						Spec: v1.PodSpec{
-							Containers: []v1.Container{
-								{
-									Name:            "busybox",
-									Image:           "busybox",
-									ImagePullPolicy: v1.PullIfNotPresent,
-									Command: []string{
-										"sleep",
-										"10",
-									},
-								},
-							},
-							RestartPolicy: "Never",
-						},
-					},
-				},
-			},
-		},
-	}
 }

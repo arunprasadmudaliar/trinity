@@ -1,7 +1,13 @@
 package utils
 
 import (
+	"context"
+
 	"github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
+	batch "k8s.io/api/batch/v1beta1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -27,4 +33,54 @@ func Client(configpath string) (*kubernetes.Clientset, error) {
 		return nil, err
 	}
 	return kubernetes.NewForConfig(config)
+}
+
+func GetObjectMetaData(obj interface{}) (objectMeta metav1.ObjectMeta) {
+	switch object := obj.(type) {
+	case *v1.Namespace:
+		objectMeta = object.ObjectMeta
+	}
+
+	return objectMeta
+}
+
+func CreateCron(kc *kubernetes.Clientset, name string, namespace string, schedule string) error {
+	_, err := kc.BatchV1beta1().CronJobs("default").Create(context.Background(), cronJobSpec(name, namespace, schedule), metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	logrus.Infof("Created cronjob for workflow:%s", name)
+	return nil
+}
+
+func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob {
+	return &batch.CronJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: batch.CronJobSpec{
+			Schedule: schedule,
+			JobTemplate: batch.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:            name,
+									Image:           "busybox",
+									ImagePullPolicy: v1.PullIfNotPresent,
+									Command: []string{
+										"sleep",
+										"10",
+									},
+								},
+							},
+							RestartPolicy: "Never",
+						},
+					},
+				},
+			},
+		},
+	}
 }
