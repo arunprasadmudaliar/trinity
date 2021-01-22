@@ -3,9 +3,10 @@ package cmd
 import (
 	"os"
 
-	"github.com/arunprasadmudaliar/trinity/cmd/run"
+	"github.com/arunprasadmudaliar/trinity/cmd/ctrl"
+	"github.com/arunprasadmudaliar/trinity/cmd/exec"
 	"github.com/arunprasadmudaliar/trinity/cmd/version"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -19,12 +20,13 @@ var rootCmd = &cobra.Command{
 //Execute func
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Panicf("Failed to start:%v", err)
+		logrus.WithError(err).Error("An error occurred")
 		os.Exit(1)
 	}
 }
 
 func init() {
 	rootCmd.AddCommand(version.Cmd)
-	rootCmd.AddCommand(run.Cmd)
+	rootCmd.AddCommand(ctrl.Cmd)
+	rootCmd.AddCommand(exec.Cmd)
 }

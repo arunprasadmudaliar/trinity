@@ -1,4 +1,4 @@
-package run
+package ctrl
 
 import (
 	"github.com/arunprasadmudaliar/trinity/pkg/controller"
@@ -9,7 +9,7 @@ var kubeconfig string
 
 //Cmd for version number
 var Cmd = &cobra.Command{
-	Use:   "run",
+	Use:   "ctrl",
 	Short: "starts an instance of trinity controller",
 	Long:  ``,
 	//Args:  cobra.ExactArgs(1),
