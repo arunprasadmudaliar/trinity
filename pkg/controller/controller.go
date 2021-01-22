@@ -26,6 +26,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
+const maxRetries = 5
+
 type workflow struct {
 	key string
 	//name      string
@@ -89,33 +91,28 @@ func newController(kc *kubernetes.Clientset, informer cache.SharedIndexInformer)
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			wf.key, err = cache.MetaNamespaceKeyFunc(obj)
-			//wf.name = utils.GetObjectMetaData(obj).Name
 			wf.action = "create"
-			//wf.namespace = utils.GetObjectMetaData(obj).Namespace
+
+			if err == nil {
+				q.Add(wf)
+			}
+		},
+		UpdateFunc: func(old, new interface{}) {
+			wf.key, err = cache.MetaNamespaceKeyFunc(old)
+			wf.action = "update"
+			if err == nil {
+				q.Add(wf)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			wf.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			wf.action = "delete"
 			if err == nil {
 				q.Add(wf)
 			}
 
-			//logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key)
-		},
-		UpdateFunc: func(old, new interface{}) {
-			/* event.key, err = cache.MetaNamespaceKeyFunc(old)
-			event.eventType = "update"
-			if err == nil {
-				q.Add(event)
-			}
-			logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key) */
-		},
-		DeleteFunc: func(obj interface{}) {
-			/* event.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-			event.eventType = "delete"
-			if err == nil {
-				q.Add(event)
-			}
-			logrus.Infof("Event received of type [%s] for [%s]", event.eventType, event.key) */
 		},
 	})
-
 	return &controller{
 		client:   kc,
 		informer: informer,
@@ -154,29 +151,48 @@ func (c *controller) runWorker() {
 }
 
 func (c *controller) processNextItem() bool {
-	e, term := c.queue.Get()
+	wf, quit := c.queue.Get()
 
-	if term {
+	if quit {
 		return false
 	}
-
-	err := c.processItem(e.(workflow))
+	defer c.queue.Done(wf.(workflow))
+	err := c.processItem(wf.(workflow))
 	if err == nil {
-		c.queue.Forget(e)
-		return true
-	}
+		// No error, reset the ratelimit counters
+		c.queue.Forget(wf)
+	} /* else if c.queue.NumRequeues(wf) < maxRetries {
+		logrus.Errorf("Error processing %s (will retry): %v", wf.(workflow).key, err)
+		c.queue.AddRateLimited(wf)
+	} else {
+		// err != nil and too many retries
+		logrus.Errorf("Error processing %s (giving up): %v", wf.(workflow).key, err)
+		c.queue.Forget(wf)
+		utilruntime.HandleError(err)
+	} */
+
 	return true
 }
 
 func (c *controller) processItem(wf workflow) error {
 	obj, _, err := c.informer.GetIndexer().GetByKey(wf.key)
-
-	j, _ := obj.(*unstructured.Unstructured).MarshalJSON()
-	var schedule schedule
-	_ = json.Unmarshal(j, &schedule)
-
 	if err != nil {
-		return fmt.Errorf("Error fetching object with key %s from store: %v", wf.key, err)
+		logrus.WithError(err).Errorf("Failed to fetch workflow %s from store", wf.key)
+		return err
+	}
+
+	var schedule schedule
+	if wf.action != "delete" {
+		j, err := obj.(*unstructured.Unstructured).MarshalJSON()
+		if err != nil {
+			logrus.WithError(err).Errorf("Failed to process %s event for workflow %s", wf.action, wf.key)
+			return err
+		}
+		err = json.Unmarshal(j, &schedule)
+		if err != nil {
+			logrus.WithError(err).Errorf("Failed to process %s event for workflow %s", wf.action, wf.key)
+			return err
+		}
 	}
 
 	ns := strings.Split(wf.key, "/")[0]
@@ -184,15 +200,41 @@ func (c *controller) processItem(wf workflow) error {
 
 	switch wf.action {
 	case "create":
-		err := utils.CreateCron(c.client.(*kubernetes.Clientset), name, ns, schedule.Spec.Schedule)
+		created, err := utils.CreateCron(c.client.(*kubernetes.Clientset), name, ns, schedule.Spec.Schedule)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to create workflow:%s", name)
+			logrus.WithError(err).Errorf("Failed to create Cron for Workflow:%s", name)
 			return err
 		}
-		logrus.Infof("Created cronjob %s scheduled to run at %s", name, schedule.Spec.Schedule)
+
+		if created {
+			logrus.Infof("Created Cron wf-cron-%s for Workflow %s", name, name)
+			return nil
+		}
+		logrus.Infof("Found a Cron wf-cron-%s for Workflow %s", name, name)
+		return nil
+
+	case "update":
+		err = utils.UpdateCron(c.client.(*kubernetes.Clientset), name, ns, schedule.Spec.Schedule)
+		if err != nil {
+			logrus.WithError(err).Errorf("Failed to Update Cron wf-cron-%s for Workflow %s", name, name)
+			return err
+		}
+		logrus.Infof("Updated Cron wf-cron-%s for Workflow %s.Scheduled time %s", name, name, schedule.Spec.Schedule)
+
+	case "delete":
+		deleted, err := utils.DeleteCron(c.client.(*kubernetes.Clientset), name, ns)
+		if err != nil {
+			logrus.WithError(err).Errorf("Failed to delete Cron wf-cron-%s for Workflow:%s", name, name)
+			return err
+		}
+		if deleted {
+			logrus.Infof("Removed Cron wf-cron-%s for workflow %s", name, name)
+			return nil
+		}
+
+		logrus.Infof("Did not find a Cron wf-cron-%s for workflow %s to delete", name, name)
+		return nil
 	}
-
-	//Use a switch clause instead and process the events based on the type
-
 	return nil
+
 }

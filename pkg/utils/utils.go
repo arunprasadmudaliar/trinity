@@ -44,19 +44,56 @@ func GetObjectMetaData(obj interface{}) (objectMeta metav1.ObjectMeta) {
 	return objectMeta
 }
 
-func CreateCron(kc *kubernetes.Clientset, name string, namespace string, schedule string) error {
-	_, err := kc.BatchV1beta1().CronJobs("default").Create(context.Background(), cronJobSpec(name, namespace, schedule), metav1.CreateOptions{})
+func getCron(kc *kubernetes.Clientset, name string, namespace string) bool {
+	_, err := kc.BatchV1beta1().CronJobs(namespace).Get(context.Background(), "wf-cron-"+name, metav1.GetOptions{})
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+func CreateCron(kc *kubernetes.Clientset, name string, namespace string, schedule string) (bool, error) {
+	jobexists := getCron(kc, name, namespace)
+
+	if !jobexists {
+		_, err := kc.BatchV1beta1().CronJobs(namespace).Create(context.Background(), cronJobSpec(name, namespace, schedule), metav1.CreateOptions{})
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	//logrus.Infof("Created cronjob for workflow:%s", name)
+	return false, nil
+}
+
+func DeleteCron(kc *kubernetes.Clientset, name string, namespace string) (bool, error) {
+	jobexists := getCron(kc, name, namespace)
+	if jobexists {
+		err := kc.BatchV1beta1().CronJobs(namespace).Delete(context.Background(), "wf-cron-"+name, metav1.DeleteOptions{})
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	//logrus.Infof("Deleted cronjob for workflow:%s", name)
+	return false, nil
+}
+
+func UpdateCron(kc *kubernetes.Clientset, name string, namespace string, schedule string) error {
+	_, err := kc.BatchV1beta1().CronJobs(namespace).Update(context.Background(), cronJobSpec(name, namespace, schedule), metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
-	logrus.Infof("Created cronjob for workflow:%s", name)
+	//logrus.Infof("Updated cronjob for workflow:%s", name)
 	return nil
 }
 
 func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob {
 	return &batch.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      "wf-cron-" + name,
 			Namespace: namespace,
 		},
 		Spec: batch.CronJobSpec{
