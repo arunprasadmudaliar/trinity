@@ -25,16 +25,17 @@ require (
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/api v0.20.2
-	k8s.io/apiserver v0.20.2
 	k8s.io/apiextensions-apiserver v0.20.2 // indirect
 	k8s.io/apimachinery v0.20.2
+	k8s.io/apiserver v0.20.2
 	k8s.io/client-go v11.0.0+incompatible
+	sigs.k8s.io/controller-runtime v0.8.1
 )
 
 replace (
 	k8s.io/api => k8s.io/api v0.20.2
-	k8s.io/client-go => k8s.io/client-go v0.20.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.2
 	k8s.io/apimachinery => k8s.io/apimachinery v0.20.2
 	k8s.io/apiserver => k8s.io/apiserver v0.20.2
+	k8s.io/client-go => k8s.io/client-go v0.20.2
 )
