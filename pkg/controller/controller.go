@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
 	"github.com/arunprasadmudaliar/trinity/pkg/utils"
 	"github.com/sirupsen/logrus"
 
@@ -181,7 +182,7 @@ func (c *controller) processItem(wf workflow) error {
 		return err
 	}
 
-	var schedule schedule
+	var schedule wfv1.Workflow
 	if wf.action != "delete" {
 		j, err := obj.(*unstructured.Unstructured).MarshalJSON()
 		if err != nil {

@@ -8,10 +8,7 @@ import (
 	batch "k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -123,38 +120,4 @@ func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob 
 			},
 		},
 	}
-}
-
-func WfClient(configpath string) (*rest.RESTClient, error) {
-
-	var config *rest.Config
-	var err error
-
-	if configpath == "" {
-		logrus.Info("Using Incluster configuration")
-		config, err = rest.InClusterConfig()
-	} else {
-		logrus.Infof("Using configuration file:%s", configpath)
-		config, err = clientcmd.BuildConfigFromFlags("", configpath)
-	}
-
-	if err != nil {
-		logrus.Fatalf("Error occured while reading kubeconfig:%v", err)
-		return nil, err
-	}
-
-	//	wfv1.AddToScheme(scheme.Scheme)
-
-	crdConfig := *config
-	crdConfig.ContentConfig.GroupVersion = &schema.GroupVersion{Group: "trinity.cloudlego.com", Version: "v1"}
-	crdConfig.APIPath = "/apis"
-	crdConfig.NegotiatedSerializer = serializer.NewCodecFactory(scheme.Scheme)
-	crdConfig.UserAgent = rest.DefaultKubernetesUserAgent()
-
-	exampleRestClient, err := rest.RESTClientFor(&crdConfig)
-	if err != nil {
-		logrus.Fatalf("Error occured while creating workflow client:%v", err)
-	}
-
-	return exampleRestClient, nil
 }

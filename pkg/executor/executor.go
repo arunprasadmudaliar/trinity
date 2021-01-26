@@ -1,26 +1,35 @@
 package executor
 
 import (
-	"context"
-
-	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
-
-	"github.com/arunprasadmudaliar/trinity/pkg/utils"
-	"github.com/sirupsen/logrus"
+	"fmt"
+	"os/exec"
 )
 
-//Run will trigger the executor
-func Run(config string) {
-	kc, err := utils.WfClient(config)
-	if err != nil {
-		logrus.Fatal(err)
+type Task struct {
+	Workflow  string
+	Namespace string
+	Name      string
+	Command   string
+	Args      []string
+	Output    string
+	Error     error
+}
+
+func (t Task) Execute() {
+	c := &exec.Cmd{
+		Path: t.Command,
+		Args: t.Args,
 	}
 
-	result := wfv1.WorkflowList{}
-	err = kc.Get().Namespace("default").Resource("workflows").Do(context.Background()).Into(&result)
-	if err != nil {
-		logrus.Error(err)
-	}
+	output, err := c.Output()
+	t.Output = string(output)
 
-	logrus.Info(result)
+	if err != nil {
+		t.Error = err
+	}
+	t.Update()
+}
+
+func (t Task) Update() {
+	fmt.Println(t)
 }

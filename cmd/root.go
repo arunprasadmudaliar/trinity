@@ -5,6 +5,7 @@ import (
 
 	"github.com/arunprasadmudaliar/trinity/cmd/ctrl"
 	"github.com/arunprasadmudaliar/trinity/cmd/exec"
+	"github.com/arunprasadmudaliar/trinity/cmd/run"
 	"github.com/arunprasadmudaliar/trinity/cmd/version"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -28,5 +29,6 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(version.Cmd)
 	rootCmd.AddCommand(ctrl.Cmd)
+	rootCmd.AddCommand(run.Cmd)
 	rootCmd.AddCommand(exec.Cmd)
 }
