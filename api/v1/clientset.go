@@ -20,6 +20,7 @@ type WorkFlowClient struct {
 type WorkFlowInterface interface {
 	List() (*WorkflowList, error)
 	Get(name string) (*Workflow, error)
+	Put(name string, workflow *Workflow) (*Workflow, error)
 	//Create(*v1alpha1.Project) (*v1alpha1.Project, error)
 	//Watch(opts metav1.ListOptions) (watch.Interface, error)
 }
@@ -105,6 +106,21 @@ func (c *workflowclient) Get(name string) (*Workflow, error) {
 		Namespace(c.ns).
 		Resource("workflows").
 		Name(name).
+		//VersionedParams(&opts, scheme.ParameterCodec).
+		Do(context.Background()).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *workflowclient) Put(name string, workflow *Workflow) (*Workflow, error) {
+	result := Workflow{}
+	err := c.restClient.
+		Put().
+		Namespace(c.ns).
+		Resource("workflows").
+		Name(name).
+		Body(workflow).
 		//VersionedParams(&opts, scheme.ParameterCodec).
 		Do(context.Background()).
 		Into(&result)

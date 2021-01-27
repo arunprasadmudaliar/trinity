@@ -7,17 +7,32 @@ import (
 // WorkflowSpec defines the desired state of Workflow
 type WorkflowSpec struct {
 	Schedule string         `json:"schedule,omitempty"`
-	Tasks    []workflowtask `json:"tasks,omitempty"`
+	Tasks    []Workflowtask `json:"tasks,omitempty"`
 }
 
-type workflowtask struct {
-	Name string `json:"name,omitempty"`
-	Type string `json:"type,omitempty"`
-	Data string `json:"data,omitempty"`
+type Workflowtask struct {
+	Name    string   `json:"name,omitempty"`
+	Type    string   `json:"type,omitempty"`
+	Command string   `json:"command,omitempty"`
+	Args    []string `json:"args,omitempty"`
 }
 
 // WorkflowStatus defines the observed state of Workflow
 type WorkflowStatus struct {
+	Runs []workflowruns
+}
+
+type workflowruns struct {
+	Phase string
+	Tasks []TaskStatus
+}
+
+type TaskStatus struct {
+	Name   string
+	Type   string
+	Status string
+	Output string
+	Error  string
 }
 
 // Workflow is the Schema for the workflows API
