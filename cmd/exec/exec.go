@@ -6,7 +6,8 @@ import (
 )
 
 var workflow string
-var id int
+var runid int
+var taskid int
 var namespace string
 var kubeconfig string
 
@@ -20,9 +21,10 @@ var Cmd = &cobra.Command{
 		wf, _ := cmd.Flags().GetString("workflow")
 		ns, _ := cmd.Flags().GetString("namespace")
 		config, _ := cmd.Flags().GetString("kubeconfig")
-		id, _ := cmd.Flags().GetInt("id")
+		runid, _ := cmd.Flags().GetInt("runid")
+		taskid, _ := cmd.Flags().GetInt("taskid")
 
-		executor.Execute(config, wf, ns, id)
+		executor.Execute(config, wf, ns, runid, taskid)
 
 	},
 }
@@ -31,8 +33,10 @@ func init() {
 	Cmd.Flags().StringVarP(&kubeconfig, "kubeconfig", "k", "", "path to kubeconfig file")
 	Cmd.Flags().StringVarP(&workflow, "workflow", "w", "", "name of the workflow")
 	Cmd.Flags().StringVarP(&namespace, "namespace", "s", "", "namespace of the workflow")
-	Cmd.Flags().IntVarP(&id, "id", "i", 0, "task id")
+	Cmd.Flags().IntVarP(&runid, "runid", "r", 0, "run id")
+	Cmd.Flags().IntVarP(&taskid, "taskid", "t", 0, "task id")
 	Cmd.MarkFlagRequired("workflow")
 	Cmd.MarkFlagRequired("namespace")
-	Cmd.MarkFlagRequired("id")
+	Cmd.MarkFlagRequired("runid")
+	Cmd.MarkFlagRequired("taskid")
 }

@@ -19,13 +19,62 @@ func Run(config string, name string, ns string) {
 		logrus.WithError(err).Fatal("Failed to create workflow client for given configuration")
 	}
 
-	//result := wfv1.Workflow{}
-	result, err := kc.WorkFlows(ns).Get(name)
-	//result, err := kc.WorkFlows(ns).List()
-	//err = kc.Get().Namespace(ns).Name(name).Resource("workflows").Do(context.Background()).Into(&result)
+	workflow, err := kc.WorkFlows(ns).Get(name)
 	if err != nil {
 		logrus.Error(err)
 	}
 
-	logrus.Info(result.Spec.Tasks)
+	logrus.Info(workflow.Spec.Tasks)
+
+	if len(workflow.Status.Runs) == 0 {
+		initialRun(kc, name, ns, workflow)
+	} else {
+		nextRun(kc, name, ns, workflow)
+	}
+
+}
+
+func initialRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *wfv1.Workflow) error {
+	init := wfv1.WorkflowStatus{
+		Runs: []wfv1.Workflowruns{
+			{
+				ID:    1,
+				Phase: "Running",
+				Tasks: []wfv1.TaskStatus{},
+			},
+		},
+	}
+
+	workflow.Status = init
+	workflow.Kind = "Workflow"
+	workflow.APIVersion = "trinity.cloudlego.com/v1"
+	_, err := kc.WorkFlows(namespace).Put(name, workflow)
+
+	if err != nil {
+		return err
+	}
+	logrus.Infof("triggered run %d for workflow %s under namespace %s", 1, name, namespace)
+	return nil
+}
+
+func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *wfv1.Workflow) error {
+
+	runid := len(workflow.Status.Runs) + 1
+
+	runstatus := wfv1.Workflowruns{
+		ID:    runid,
+		Phase: "running",
+		Tasks: []wfv1.TaskStatus{},
+	}
+
+	workflow.Status.Runs = append(workflow.Status.Runs, runstatus)
+	workflow.Kind = "Workflow"
+	workflow.APIVersion = "trinity.cloudlego.com/v1"
+	_, err := kc.WorkFlows(namespace).Put(name, workflow)
+
+	if err != nil {
+		return err
+	}
+	logrus.Infof("triggered run %d for workflow %s under namespace %s", runid, name, namespace)
+	return nil
 }

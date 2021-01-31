@@ -6,48 +6,49 @@ import (
 
 // WorkflowSpec defines the desired state of Workflow
 type WorkflowSpec struct {
-	Schedule string         `json:"schedule,omitempty"`
-	Tasks    []Workflowtask `json:"tasks,omitempty"`
+	Schedule string         `json:"schedule"`
+	Tasks    []Workflowtask `json:"tasks"`
 }
 
 type Workflowtask struct {
-	Name    string   `json:"name,omitempty"`
-	Type    string   `json:"type,omitempty"`
-	Command string   `json:"command,omitempty"`
-	Args    []string `json:"args,omitempty"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
 }
 
 // WorkflowStatus defines the observed state of Workflow
 type WorkflowStatus struct {
-	Runs []workflowruns
+	Runs []Workflowruns `json:"runs"`
 }
 
-type workflowruns struct {
-	Phase string
-	Tasks []TaskStatus
+type Workflowruns struct {
+	ID    int          `json:"id"`
+	Phase string       `json:"phase"`
+	Tasks []TaskStatus `json:"tasks"`
 }
 
 type TaskStatus struct {
-	Name   string
-	Type   string
-	Status string
-	Output string
-	Error  string
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+	Output string `json:"output"`
+	Error  string `json:"error"`
 }
 
 // Workflow is the Schema for the workflows API
 type Workflow struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   WorkflowSpec   `json:"spec,omitempty"`
-	Status WorkflowStatus `json:"status,omitempty"`
+	Spec   WorkflowSpec   `json:"spec"`
+	Status WorkflowStatus `json:"status"`
 }
 
 // WorkflowList contains a list of Workflow
 type WorkflowList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []Workflow `json:"items"`
 }
 

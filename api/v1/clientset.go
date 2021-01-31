@@ -106,6 +106,7 @@ func (c *workflowclient) Get(name string) (*Workflow, error) {
 		Namespace(c.ns).
 		Resource("workflows").
 		Name(name).
+		SubResource("status").
 		//VersionedParams(&opts, scheme.ParameterCodec).
 		Do(context.Background()).
 		Into(&result)
@@ -120,6 +121,7 @@ func (c *workflowclient) Put(name string, workflow *Workflow) (*Workflow, error)
 		Namespace(c.ns).
 		Resource("workflows").
 		Name(name).
+		SubResource("status").
 		Body(workflow).
 		//VersionedParams(&opts, scheme.ParameterCodec).
 		Do(context.Background()).
