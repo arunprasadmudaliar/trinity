@@ -2,6 +2,9 @@ package runner
 
 import (
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
+	"github.com/arunprasadmudaliar/trinity/pkg/utils"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/sirupsen/logrus"
@@ -24,7 +27,7 @@ func Run(config string, name string, ns string) {
 		logrus.Error(err)
 	}
 
-	logrus.Info(workflow.Spec.Tasks)
+	deployPod(config, name, ns, workflow)
 
 	if len(workflow.Status.Runs) == 0 {
 		initialRun(kc, name, ns, workflow)
@@ -77,4 +80,49 @@ func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *w
 	}
 	logrus.Infof("triggered run %d for workflow %s under namespace %s", runid, name, namespace)
 	return nil
+}
+
+func getImage(name string) string {
+	switch name {
+	case "shell":
+		return "alpine:latest"
+	default:
+		return "alpine:latest"
+	}
+}
+
+func deployPod(cfg string, name string, namespace string, workflow *wfv1.Workflow) {
+
+	kc, err := utils.Client(cfg)
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	for _, task := range workflow.Spec.Tasks {
+		image := getImage((task.Type))
+		_, err := utils.CreatePod(kc, name, namespace, image)
+
+		if err != nil {
+			logrus.Error(err)
+		}
+		logrus.Infof("executing task %s for workflow %s", task.Name, name)
+		ch, err := utils.WatchPod(kc, name, namespace)
+		if err != nil {
+			logrus.Error(err)
+		}
+
+		for event := range ch.ResultChan() {
+			if event.Type == watch.Modified {
+				podobject := event.Object.(*v1.Pod)
+
+				// logrus.Info(podobject.Status.ContainerStatuses[0].State)
+				state := podobject.Status.ContainerStatuses[0].State
+				if state.Terminated != nil && state.Terminated.Reason == "Completed" {
+					logrus.Infof("completed task %s for workflow %s", task.Name, name)
+					break
+				}
+				logrus.Infof("waiting for task %s to complete", task.Name)
+			}
+		}
+	}
 }

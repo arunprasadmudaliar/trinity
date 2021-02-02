@@ -8,6 +8,7 @@ import (
 	batch "k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -60,6 +61,7 @@ func CreateCron(kc *kubernetes.Clientset, name string, namespace string, schedul
 		if err != nil {
 			return false, err
 		}
+
 		return true, nil
 	}
 
@@ -90,6 +92,22 @@ func UpdateCron(kc *kubernetes.Clientset, name string, namespace string, schedul
 	return nil
 }
 
+func CreatePod(kc *kubernetes.Clientset, name string, namespace string, image string) (*v1.Pod, error) {
+	podspec := podSpec(name, namespace, image)
+	pod, err := kc.CoreV1().Pods(namespace).Create(context.Background(), podspec, metav1.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return pod, nil
+}
+
+func WatchPod(kc *kubernetes.Clientset, name string, namespace string) (watch.Interface, error) {
+	opts := metav1.ListOptions{
+		FieldSelector: "metadata.name=" + name,
+	}
+	return kc.CoreV1().Pods(namespace).Watch(context.Background(), opts)
+}
+
 func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob {
 	return &batch.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,6 +136,28 @@ func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob 
 					},
 				},
 			},
+		},
+	}
+}
+
+func podSpec(name string, namespace string, image string) *v1.Pod {
+	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"workflow": name,
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:    "exec",
+					Image:   image,
+					Command: []string{"date"},
+				},
+			},
+			RestartPolicy: "Never",
 		},
 	}
 }
