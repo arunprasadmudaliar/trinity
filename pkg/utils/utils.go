@@ -108,8 +108,8 @@ func WatchPod(kc *kubernetes.Clientset, name string, namespace string) (watch.In
 	return kc.CoreV1().Pods(namespace).Watch(context.Background(), opts)
 }
 
-func CreateJob(kc *kubernetes.Clientset, name string, namespace string, image string) (*batchv1.Job, error) {
-	jobspec := jobSpec(name, namespace, image)
+func CreateJob(kc *kubernetes.Clientset, name string, namespace string, image string, runid string, taskid string) (*batchv1.Job, error) {
+	jobspec := jobSpec(name, namespace, image, runid, taskid)
 	job, err := kc.BatchV1().Jobs(namespace).Create(context.Background(), jobspec, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
@@ -183,10 +183,10 @@ func podSpec(name string, namespace string, image string) *v1.Pod {
 	}
 }
 
-func jobSpec(name string, namespace string, image string) *batchv1.Job {
+func jobSpec(name string, namespace string, image string, runid string, taskid string) *batchv1.Job {
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      name + "-task-" + "taskid",
 			Namespace: namespace,
 		},
 		Spec: batchv1.JobSpec{
@@ -195,12 +195,15 @@ func jobSpec(name string, namespace string, image string) *batchv1.Job {
 					Containers: []v1.Container{
 						{
 							Name:            name,
-							Image:           "busybox",
+							Image:           image,
 							ImagePullPolicy: v1.PullIfNotPresent,
-							Command: []string{
-								//"sleep1",
-								//"10",
-								"exit 1",
+							Command:         []string{"trinity"},
+							Args: []string{
+								"exec",
+								"-w", name,
+								"-s", namespace,
+								"-r", runid,
+								"-t", taskid,
 							},
 						},
 					},

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"errors"
+	"strconv"
 
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
 	"github.com/arunprasadmudaliar/trinity/pkg/utils"
@@ -30,17 +31,16 @@ func Run(config string, name string, ns string) {
 		logrus.Error(err)
 	}
 
-	deployJob(config, name, ns, workflow)
-
+	var runid int
 	if len(workflow.Status.Runs) == 0 {
-		initialRun(kc, name, ns, workflow)
+		runid, _ = initialRun(kc, name, ns, workflow)
 	} else {
-		nextRun(kc, name, ns, workflow)
+		runid, _ = nextRun(kc, name, ns, workflow)
 	}
-
+	deployJob(config, name, ns, workflow, strconv.Itoa(runid))
 }
 
-func initialRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *wfv1.Workflow) error {
+func initialRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *wfv1.Workflow) (int, error) {
 	init := wfv1.WorkflowStatus{
 		Runs: []wfv1.Workflowruns{
 			{
@@ -57,13 +57,13 @@ func initialRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow
 	_, err := kc.WorkFlows(namespace).Put(name, workflow)
 
 	if err != nil {
-		return err
+		return -1, err
 	}
 	logrus.Infof("triggered run %d for workflow %s under namespace %s", 1, name, namespace)
-	return nil
+	return 0, nil
 }
 
-func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *wfv1.Workflow) error {
+func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *wfv1.Workflow) (int, error) {
 
 	runid := len(workflow.Status.Runs) + 1
 
@@ -79,37 +79,37 @@ func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *w
 	_, err := kc.WorkFlows(namespace).Put(name, workflow)
 
 	if err != nil {
-		return err
+		return -1, err
 	}
 	logrus.Infof("triggered run %d for workflow %s under namespace %s", runid, name, namespace)
-	return nil
+	return runid, nil
 }
 
 func getImage(name string) string {
 	switch name {
 	case "shell":
-		return "alpine:latest"
+		return "arunmudaliar/trinity:latest"
 	default:
-		return "alpine:latest"
+		return "arunmudaliar/trinity:latest"
 	}
 }
 
-func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflow) {
+func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflow, runid string) {
 
 	kc, err := utils.Client(cfg)
 	if err != nil {
 		logrus.Error(err)
 	}
 
-	for _, task := range workflow.Spec.Tasks {
+	for taskid, task := range workflow.Spec.Tasks {
 		image := getImage((task.Type))
-		_, err := utils.CreateJob(kc, name, namespace, image)
+		_, err := utils.CreateJob(kc, name, namespace, image, runid, strconv.Itoa(taskid))
 
 		if err != nil {
 			logrus.Error(err)
 		}
 		logrus.Infof("executing task %s for workflow %s", task.Name, name)
-		ch, err := utils.WatchJob(kc, name, namespace)
+		ch, err := utils.WatchJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -121,16 +121,16 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 				if len(object.Status.Conditions) > 0 {
 					if object.Status.Conditions[0].Type == "Complete" {
 						logrus.Infof("completed task %s for workflow %s", task.Name, name)
-						removeJob(kc, name, namespace)
+						removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 					} else {
 						newerr := errors.New(object.Status.Conditions[0].Message)
 						logrus.WithError(newerr).Errorf("failed to execute task %s", name)
-						removeJob(kc, name, namespace)
+						removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 					}
 					break
 				} else {
 					logrus.Errorf("failed to execute task %s", name)
-					removeJob(kc, name, namespace)
+					removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 					break
 				}
 
