@@ -108,6 +108,27 @@ func WatchPod(kc *kubernetes.Clientset, name string, namespace string) (watch.In
 	return kc.CoreV1().Pods(namespace).Watch(context.Background(), opts)
 }
 
+func CreateJob(kc *kubernetes.Clientset, name string, namespace string, image string) (*batchv1.Job, error) {
+	jobspec := jobSpec(name, namespace, image)
+	job, err := kc.BatchV1().Jobs(namespace).Create(context.Background(), jobspec, metav1.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return job, nil
+}
+
+func DeleteJob(kc *kubernetes.Clientset, name string, namespace string) error {
+	err := kc.BatchV1().Jobs(namespace).Delete(context.Background(), name, metav1.DeleteOptions{})
+	return err
+}
+
+func WatchJob(kc *kubernetes.Clientset, name string, namespace string) (watch.Interface, error) {
+	opts := metav1.ListOptions{
+		FieldSelector: "metadata.name=" + name,
+	}
+	return kc.BatchV1().Jobs(namespace).Watch(context.Background(), opts)
+}
+
 func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob {
 	return &batch.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -160,4 +181,33 @@ func podSpec(name string, namespace string, image string) *v1.Pod {
 			RestartPolicy: "Never",
 		},
 	}
+}
+
+func jobSpec(name string, namespace string, image string) *batchv1.Job {
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:            name,
+							Image:           "busybox",
+							ImagePullPolicy: v1.PullIfNotPresent,
+							Command: []string{
+								//"sleep1",
+								//"10",
+								"exit 1",
+							},
+						},
+					},
+					RestartPolicy: "Never",
+				},
+			},
+		},
+	}
+
 }

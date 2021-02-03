@@ -1,10 +1,13 @@
 package runner
 
 import (
+	"errors"
+
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
 	"github.com/arunprasadmudaliar/trinity/pkg/utils"
-	v1 "k8s.io/api/core/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/sirupsen/logrus"
@@ -27,7 +30,7 @@ func Run(config string, name string, ns string) {
 		logrus.Error(err)
 	}
 
-	deployPod(config, name, ns, workflow)
+	deployJob(config, name, ns, workflow)
 
 	if len(workflow.Status.Runs) == 0 {
 		initialRun(kc, name, ns, workflow)
@@ -91,7 +94,7 @@ func getImage(name string) string {
 	}
 }
 
-func deployPod(cfg string, name string, namespace string, workflow *wfv1.Workflow) {
+func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflow) {
 
 	kc, err := utils.Client(cfg)
 	if err != nil {
@@ -100,29 +103,49 @@ func deployPod(cfg string, name string, namespace string, workflow *wfv1.Workflo
 
 	for _, task := range workflow.Spec.Tasks {
 		image := getImage((task.Type))
-		_, err := utils.CreatePod(kc, name, namespace, image)
+		_, err := utils.CreateJob(kc, name, namespace, image)
 
 		if err != nil {
 			logrus.Error(err)
 		}
 		logrus.Infof("executing task %s for workflow %s", task.Name, name)
-		ch, err := utils.WatchPod(kc, name, namespace)
+		ch, err := utils.WatchJob(kc, name, namespace)
 		if err != nil {
 			logrus.Error(err)
 		}
 
 		for event := range ch.ResultChan() {
 			if event.Type == watch.Modified {
-				podobject := event.Object.(*v1.Pod)
+				object := event.Object.(*batchv1.Job)
 
-				// logrus.Info(podobject.Status.ContainerStatuses[0].State)
-				state := podobject.Status.ContainerStatuses[0].State
-				if state.Terminated != nil && state.Terminated.Reason == "Completed" {
-					logrus.Infof("completed task %s for workflow %s", task.Name, name)
+				if len(object.Status.Conditions) > 0 {
+					if object.Status.Conditions[0].Type == "Complete" {
+						logrus.Infof("completed task %s for workflow %s", task.Name, name)
+						removeJob(kc, name, namespace)
+					} else {
+						newerr := errors.New(object.Status.Conditions[0].Message)
+						logrus.WithError(newerr).Errorf("failed to execute task %s", name)
+						removeJob(kc, name, namespace)
+					}
+					break
+				} else {
+					logrus.Errorf("failed to execute task %s", name)
+					removeJob(kc, name, namespace)
 					break
 				}
+
+			} else if event.Type == watch.Added {
 				logrus.Infof("waiting for task %s to complete", task.Name)
 			}
 		}
+	}
+}
+
+func removeJob(kc *kubernetes.Clientset, name string, namespace string) {
+	err := utils.DeleteJob(kc, name, namespace)
+	if err != nil {
+		logrus.WithError(err).Errorf("failed to remove task %s", name)
+	} else {
+		logrus.Infof("removed task %s", name)
 	}
 }
