@@ -65,10 +65,10 @@ func initialRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow
 
 func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *wfv1.Workflow) (int, error) {
 
-	runid := len(workflow.Status.Runs) + 1
+	runid := len(workflow.Status.Runs)
 
 	runstatus := wfv1.Workflowruns{
-		ID:    runid,
+		ID:    runid + 1,
 		Phase: "running",
 		Tasks: []wfv1.TaskStatus{},
 	}
@@ -81,7 +81,7 @@ func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *w
 	if err != nil {
 		return -1, err
 	}
-	logrus.Infof("triggered run %d for workflow %s under namespace %s", runid, name, namespace)
+	logrus.Infof("triggered run %d for workflow %s under namespace %s", runid+1, name, namespace)
 	return runid, nil
 }
 
@@ -108,6 +108,7 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 		if err != nil {
 			logrus.Error(err)
 		}
+
 		logrus.Infof("executing task %s for workflow %s", task.Name, name)
 		ch, err := utils.WatchJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 		if err != nil {

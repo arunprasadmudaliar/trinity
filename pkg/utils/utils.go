@@ -186,7 +186,7 @@ func podSpec(name string, namespace string, image string) *v1.Pod {
 func jobSpec(name string, namespace string, image string, runid string, taskid string) *batchv1.Job {
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name + "-task-" + "taskid",
+			Name:      name + "-task-" + taskid,
 			Namespace: namespace,
 		},
 		Spec: batchv1.JobSpec{
@@ -196,7 +196,7 @@ func jobSpec(name string, namespace string, image string, runid string, taskid s
 						{
 							Name:            name,
 							Image:           image,
-							ImagePullPolicy: v1.PullIfNotPresent,
+							ImagePullPolicy: "Always",
 							Command:         []string{"trinity"},
 							Args: []string{
 								"exec",

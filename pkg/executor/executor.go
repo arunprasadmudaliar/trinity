@@ -5,14 +5,25 @@ import (
 
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 func Execute(config string, workflow string, namespace string, runid int, taskid int) {
 
-	cfg, err := clientcmd.BuildConfigFromFlags("", config)
-	if err != nil {
-		logrus.WithError(err).Fatal("Failed to build workflow client configuration")
+	var cfg *rest.Config
+	var err error
+	if config == "" {
+		cfg, err = rest.InClusterConfig()
+		if err != nil {
+			logrus.Fatalf("Error occured while reading incluster kubeconfig:%v", err)
+			//return nil, err
+		}
+	} else {
+		cfg, err = clientcmd.BuildConfigFromFlags("", config)
+		if err != nil {
+			logrus.WithError(err).Fatal("Failed to build workflow client configuration")
+		}
 	}
 
 	kc, err := wfv1.NewForConfig(cfg)
@@ -23,23 +34,30 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	//result := wfv1.Workflow{}
 	wf, err := kc.WorkFlows(namespace).Get(workflow)
 	if err != nil {
-		logrus.Error(err)
+		logrus.WithError(err).Errorf("Failed to get workflow %s", workflow)
 	}
 
-	c := &exec.Cmd{
+	/* c := &exec.Cmd{
+		//	Path: "/bin",
+		//	Args: []string{"ls", "-a"},
 		Path: wf.Spec.Tasks[taskid].Command,
 		Args: wf.Spec.Tasks[taskid].Args,
-	}
+	} */
+
+	c := exec.Command(wf.Spec.Tasks[taskid].Command, wf.Spec.Tasks[taskid].Args...)
 
 	var st string
 	wf.Kind = "Workflow"
 	wf.APIVersion = "trinity.cloudlego.com/v1"
 
+	var e string
 	output, err := c.Output()
 	if err != nil {
 		st = "failed"
+		e = err.Error()
 	} else {
 		st = "success"
+		e = ""
 	}
 
 	taskstatus := wfv1.TaskStatus{
@@ -47,7 +65,7 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 		Type:   wf.Spec.Tasks[taskid].Type,
 		Status: st,
 		Output: string(output),
-		Error:  err.Error(),
+		Error:  e,
 	}
 
 	if taskid == len(wf.Spec.Tasks)-1 {
@@ -58,9 +76,9 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 
 	_, err = kc.WorkFlows(namespace).Put(workflow, wf)
 	if err != nil {
-		logrus.WithError(err).Errorf("failed to update prerunstatus for workflow %s in namespace %s", workflow, namespace)
+		logrus.WithError(err).Errorf("failed to update status for workflow %s in namespace %s", workflow, namespace)
 	}
 
-	logrus.Infof("updated prerunstatus for workflow %s in namespace %s", workflow, namespace)
+	logrus.Infof("updated status for workflow %s in namespace %s", workflow, namespace)
 
 }
