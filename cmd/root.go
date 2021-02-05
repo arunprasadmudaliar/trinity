@@ -13,8 +13,8 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "ty",
-	Short: "Create Business workflows using Trinity",
+	Use:   "trinity",
+	Short: "Create Workflows using Trinity",
 	Long:  ``,
 }
 

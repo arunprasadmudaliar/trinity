@@ -1,0 +1,21 @@
+apiVersion: "trinity.cloudlego.com/v1"
+kind: WorkFlow
+metadata:
+  name: wf1
+spec:
+  schedule: "*/5 * * * *"
+  tasks:
+  - name: task1
+    type: shell
+    command: "ls"
+    args:
+    - "-a"
+  - name: task2
+    type: shell
+    command: "hostname"
+  - name: task3
+    type: shell
+    command: "uname"
+    args:
+      - "-a"
+    

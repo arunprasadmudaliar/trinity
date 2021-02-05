@@ -129,11 +129,11 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 						removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 					}
 					break
-				} else {
+				} /* else {
 					logrus.Errorf("failed to execute task %s", name)
 					removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 					break
-				}
+				} */
 
 			} else if event.Type == watch.Added {
 				logrus.Infof("waiting for task %s to complete", task.Name)

@@ -9,7 +9,7 @@ import (
 //Cmd for version number
 var Cmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print version number of trinity in the format major.minor.patch",
+	Short: "Display version number of trinity",
 	Long:  ``,
 	//Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {

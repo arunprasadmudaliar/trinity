@@ -1,0 +1,46 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: trinity-service-role
+  #namespace: default
+rules:
+- apiGroups: ["trinity.cloudlego.com","batch"] # "" indicates the core API group
+  resources: ["workflows","workflows/status","cronjobs","jobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: trinity-service-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-controller
+  labels:
+    app: wf-ctrl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wf-ctrl
+  template:
+    metadata:
+      labels:
+        app: wf-ctrl
+    spec:
+      containers:
+      - name: ctrl
+        image: arunmudaliar/trinity:latest
+        imagePullPolicy: Always
+        command: ["trinity"]
+        args: ["ctrl"]
+      

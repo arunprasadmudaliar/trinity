@@ -139,7 +139,7 @@ func (c *controller) Run(stopper <-chan struct{}) {
 		return
 	}
 
-	logrus.Info("synchronization complete!")
+	logrus.Info("synchronization complete")
 	//logrus.Info("")
 
 	wait.Until(c.runWorker, time.Second, stopper)

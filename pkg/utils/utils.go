@@ -144,11 +144,13 @@ func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob 
 							Containers: []v1.Container{
 								{
 									Name:            name,
-									Image:           "busybox",
-									ImagePullPolicy: v1.PullIfNotPresent,
-									Command: []string{
-										"sleep",
-										"10",
+									Image:           "arunmudaliar/trinity:latest",
+									ImagePullPolicy: "Always",
+									Command:         []string{"trinity"},
+									Args: []string{
+										"run",
+										"-w", name,
+										"-n", namespace,
 									},
 								},
 							},
@@ -201,7 +203,7 @@ func jobSpec(name string, namespace string, image string, runid string, taskid s
 							Args: []string{
 								"exec",
 								"-w", name,
-								"-s", namespace,
+								"-n", namespace,
 								"-r", runid,
 								"-t", taskid,
 							},

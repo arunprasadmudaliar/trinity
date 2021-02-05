@@ -24,8 +24,8 @@ var Cmd = &cobra.Command{
 }
 
 func init() {
-	Cmd.Flags().StringVarP(&name, "name", "n", "", "name of the workflow")
-	Cmd.Flags().StringVarP(&namespace, "namespace", "s", "", "namespace of the workflow")
+	Cmd.Flags().StringVarP(&name, "name", "w", "", "name of the workflow")
+	Cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace of the workflow")
 	Cmd.Flags().StringVarP(&kubeconfig, "kubeconfig", "k", "", "path to kubeconfig file")
 	Cmd.MarkFlagRequired("name")
 	Cmd.MarkFlagRequired("namespace")
