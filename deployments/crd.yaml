@@ -22,6 +22,8 @@ spec:
               properties:
                 schedule:
                   type: string
+                  pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'
+                  default: '*/5 * * * *'
                 tasks:
                   type: array
                   items: 
@@ -29,12 +31,13 @@ spec:
                     properties:
                       name:
                         type: string
-                      type:
-                        type: string
+                        pattern: '^[a-zA-Z0-9]*$'
                       command:
                         type: string
+                        pattern: '^(bash|git|aws|az)$'
+                        default: 'bash'
                       args:
-                        type: array
+                        type: array                       
                         items:
                           type: string
             status:

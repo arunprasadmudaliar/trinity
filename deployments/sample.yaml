@@ -5,17 +5,11 @@ metadata:
 spec:
   schedule: "*/5 * * * *"
   tasks:
-  - name: task1
-    type: shell
-    command: "ls"
-    args:
-    - "-a"
-  - name: task2
-    type: shell
-    command: "hostname"
-  - name: task3
-    type: shell
-    command: "uname"
-    args:
-      - "-a"
-    
+  - name: task1    
+    command: "bash"
+  - name: task2   
+    command: "aws"
+  - name: task3   
+    command: "az"
+  - name: task4   
+    command: "git"

@@ -44,7 +44,9 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 		Args: wf.Spec.Tasks[taskid].Args,
 	} */
 
-	c := exec.Command(wf.Spec.Tasks[taskid].Command, wf.Spec.Tasks[taskid].Args...)
+	command := getCmd(wf.Spec.Tasks[taskid].Command)
+	args := getArgs(wf.Spec.Tasks[taskid].Command, wf.Spec.Tasks[taskid].Args)
+	c := exec.Command(command, args...)
 
 	var st string
 	wf.Kind = "Workflow"
@@ -61,11 +63,12 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	}
 
 	taskstatus := wfv1.TaskStatus{
-		Name:   wf.Spec.Tasks[taskid].Name,
-		Type:   wf.Spec.Tasks[taskid].Type,
-		Status: st,
-		Output: string(output),
-		Error:  e,
+		Name:    wf.Spec.Tasks[taskid].Name,
+		Command: command,
+		Args:    args,
+		Status:  st,
+		Output:  string(output),
+		Error:   e,
 	}
 
 	if taskid == len(wf.Spec.Tasks)-1 {

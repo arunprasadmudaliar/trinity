@@ -85,15 +85,6 @@ func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *w
 	return runid, nil
 }
 
-func getImage(name string) string {
-	switch name {
-	case "shell":
-		return "arunmudaliar/trinity:latest"
-	default:
-		return "arunmudaliar/trinity:latest"
-	}
-}
-
 func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflow, runid string) {
 
 	kc, err := utils.Client(cfg)
@@ -102,7 +93,7 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 	}
 
 	for taskid, task := range workflow.Spec.Tasks {
-		image := getImage((task.Type))
+		image := getImage((task.Command))
 		_, err := utils.CreateJob(kc, name, namespace, image, runid, strconv.Itoa(taskid))
 
 		if err != nil {

@@ -11,8 +11,8 @@ type WorkflowSpec struct {
 }
 
 type Workflowtask struct {
-	Name    string   `json:"name"`
-	Type    string   `json:"type"`
+	Name string `json:"name"`
+	//Type    string   `json:"type"`
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
 }
@@ -29,11 +29,12 @@ type Workflowruns struct {
 }
 
 type TaskStatus struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Status string `json:"status"`
-	Output string `json:"output"`
-	Error  string `json:"error"`
+	Name    string   `json:"name"`
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+	Status  string   `json:"status"`
+	Output  string   `json:"output"`
+	Error   string   `json:"error"`
 }
 
 // Workflow is the Schema for the workflows API
