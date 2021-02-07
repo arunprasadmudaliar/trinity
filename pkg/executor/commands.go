@@ -2,7 +2,7 @@ package executor
 
 const az = "az"
 const aws = "aws"
-const bash = "bash"
+const bash = "/bin/bash"
 const git = "git"
 
 func getCmd(name string) string {
@@ -26,7 +26,7 @@ func getArgs(name string, args []string) []string {
 	}
 	switch name {
 	case "bash":
-		return []string{"echo", "'Hello There!'"}
+		return []string{"-lc", "uname", "-a"}
 	case "git":
 		return []string{"version"}
 	case "az":
@@ -34,6 +34,6 @@ func getArgs(name string, args []string) []string {
 	case "aws":
 		return []string{"--version"}
 	default:
-		return []string{"echo", "'Hello There!'"}
+		return []string{"-lc", "uname", "-a"}
 	}
 }

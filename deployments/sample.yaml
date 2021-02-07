@@ -13,3 +13,21 @@ spec:
     command: "az"
   - name: task4   
     command: "git"
+---
+apiVersion: "trinity.cloudlego.com/v1"
+kind: WorkFlow
+metadata:
+  name: wf2
+spec:
+  schedule: "*/2 * * * *"
+  tasks:
+  - name: task1    
+    command: "bash"
+    args:
+      - "-lc"
+      - "ls"
+      - "-a"
+  - name: task4   
+    command: "git"
+    args:
+      - "help"
