@@ -101,6 +101,7 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 		}
 
 		logrus.Infof("executing task %s for workflow %s", task.Name, name)
+		//ch, err := utils.WatchJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 		ch, err := utils.WatchJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
 		if err != nil {
 			logrus.Error(err)

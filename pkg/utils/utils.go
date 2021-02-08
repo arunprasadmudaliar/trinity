@@ -130,13 +130,18 @@ func WatchJob(kc *kubernetes.Clientset, name string, namespace string) (watch.In
 }
 
 func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob {
+	var zero *int32
+	zero = new(int32)
+	*zero = 0
 	return &batch.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "wf-cron-" + name,
 			Namespace: namespace,
 		},
 		Spec: batch.CronJobSpec{
-			Schedule: schedule,
+			Schedule:                   schedule,
+			FailedJobsHistoryLimit:     zero,
+			SuccessfulJobsHistoryLimit: zero,
 			JobTemplate: batch.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					Template: v1.PodTemplateSpec{
@@ -186,12 +191,16 @@ func podSpec(name string, namespace string, image string) *v1.Pod {
 }
 
 func jobSpec(name string, namespace string, image string, runid string, taskid string) *batchv1.Job {
+	var ttl *int32
+	ttl = new(int32)
+	*ttl = 5
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name + "-task-" + taskid,
 			Namespace: namespace,
 		},
 		Spec: batchv1.JobSpec{
+			//TTLSecondsAfterFinished: ttl,
 			Template: v1.PodTemplateSpec{
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{

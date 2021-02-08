@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -99,11 +100,25 @@ func newController(kc *kubernetes.Clientset, informer cache.SharedIndexInformer)
 			}
 		},
 		UpdateFunc: func(old, new interface{}) {
-			wf.key, err = cache.MetaNamespaceKeyFunc(old)
-			wf.action = "update"
-			if err == nil {
-				q.Add(wf)
+			//Push to queue only if there is a change in spec and not status.
+
+			oldWf, err := unstructuredToWorkflow(old.(*unstructured.Unstructured))
+			if err != nil {
+				logrus.WithError(err).Errorf("Failed to unmarshal workflow object %s", oldWf)
 			}
+			newWf, err := unstructuredToWorkflow(new.(*unstructured.Unstructured))
+			if err != nil {
+				logrus.WithError(err).Errorf("Failed to unmarshal workflow object %s", newWf)
+			}
+
+			if !reflect.DeepEqual(oldWf.Spec, newWf.Spec) {
+				wf.key, err = cache.MetaNamespaceKeyFunc(old)
+				wf.action = "update"
+				if err == nil {
+					q.Add(wf)
+				}
+			}
+
 		},
 		DeleteFunc: func(obj interface{}) {
 			wf.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
@@ -238,4 +253,19 @@ func (c *controller) processItem(wf workflow) error {
 	}
 	return nil
 
+}
+
+func unstructuredToWorkflow(obj *unstructured.Unstructured) (wfv1.Workflow, error) {
+	var wf wfv1.Workflow
+	j, err := obj.MarshalJSON()
+	if err != nil {
+		//	logrus.WithError(err).Errorf("Failed to unmarshal workflow object %s", obj)
+		return wf, err
+	}
+	err = json.Unmarshal(j, &wf)
+	if err != nil {
+		//	logrus.WithError(err).Errorf("Failed to unmarshal workflow object %s", obj)
+		return wf, err
+	}
+	return wf, nil
 }
