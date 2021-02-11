@@ -1,6 +1,8 @@
 package runner
 
-const registry = "arunmudaliar/"
+const IMAGE = "arunmudaliar/bash:latest"
+
+/* const registry = "arunmudaliar/"
 const bash = "bash:latest"
 const az = "azure:latest"
 const git = "git:latest"
@@ -20,3 +22,4 @@ func getImage(name string) string {
 		return registry + bash
 	}
 }
+*/

@@ -93,8 +93,8 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 	}
 
 	for taskid, task := range workflow.Spec.Tasks {
-		image := getImage((task.Command))
-		_, err := utils.CreateJob(kc, name, namespace, image, runid, strconv.Itoa(taskid))
+		//image := getImage((task.Command))
+		_, err := utils.CreateJob(kc, name, namespace, IMAGE, runid, strconv.Itoa(taskid))
 
 		if err != nil {
 			logrus.Error(err)

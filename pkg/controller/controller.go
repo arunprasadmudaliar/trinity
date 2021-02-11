@@ -155,7 +155,6 @@ func (c *controller) Run(stopper <-chan struct{}) {
 	}
 
 	logrus.Info("synchronization complete")
-	//logrus.Info("")
 
 	wait.Until(c.runWorker, time.Second, stopper)
 }
@@ -218,37 +217,37 @@ func (c *controller) processItem(wf workflow) error {
 	case "create":
 		created, err := utils.CreateCron(c.client.(*kubernetes.Clientset), name, ns, schedule.Spec.Schedule)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to create Cron for Workflow:%s", name)
+			logrus.WithError(err).Errorf("Failed to create Cron for %s", wf.key)
 			return err
 		}
 
 		if created {
-			logrus.Infof("Created Cron wf-cron-%s for Workflow %s", name, name)
+			logrus.Infof("Created Cron wf-cron-%s for %s", name, wf.key)
 			return nil
 		}
-		logrus.Infof("Found a Cron wf-cron-%s for Workflow %s", name, name)
+		logrus.Infof("Found a Cron wf-cron-%s for %s", name, wf.key)
 		return nil
 
 	case "update":
 		err = utils.UpdateCron(c.client.(*kubernetes.Clientset), name, ns, schedule.Spec.Schedule)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to Update Cron wf-cron-%s for Workflow %s", name, name)
+			logrus.WithError(err).Errorf("Failed to Update Cron wf-cron-%s for %s", name, wf.key)
 			return err
 		}
-		logrus.Infof("Updated Cron wf-cron-%s for Workflow %s.Scheduled time %s", name, name, schedule.Spec.Schedule)
+		logrus.Infof("Updated Cron wf-cron-%s for %s", name, wf.key)
 
 	case "delete":
 		deleted, err := utils.DeleteCron(c.client.(*kubernetes.Clientset), name, ns)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to delete Cron wf-cron-%s for Workflow:%s", name, name)
+			logrus.WithError(err).Errorf("Failed to delete Cron wf-cron-%s for %s", name, wf.key)
 			return err
 		}
 		if deleted {
-			logrus.Infof("Removed Cron wf-cron-%s for workflow %s", name, name)
+			logrus.Infof("Removed Cron wf-cron-%s for %s", name, wf.key)
 			return nil
 		}
 
-		logrus.Infof("Did not find a Cron wf-cron-%s for workflow %s to delete", name, name)
+		logrus.Infof("Did not find a Cron wf-cron-%s for %s to delete", name, wf.key)
 		return nil
 	}
 	return nil

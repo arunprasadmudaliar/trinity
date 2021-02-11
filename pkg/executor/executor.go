@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"io/ioutil"
 	"os/exec"
 
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
@@ -37,23 +38,24 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 		logrus.WithError(err).Errorf("Failed to get workflow %s", workflow)
 	}
 
-	/* c := &exec.Cmd{
-		//	Path: "/bin",
-		//	Args: []string{"ls", "-a"},
-		Path: wf.Spec.Tasks[taskid].Command,
-		Args: wf.Spec.Tasks[taskid].Args,
-	} */
+	var output []byte
 
-	command := getCmd(wf.Spec.Tasks[taskid].Command)
-	args := getArgs(wf.Spec.Tasks[taskid].Command, wf.Spec.Tasks[taskid].Args)
-	c := exec.Command(command, args...)
+	if wf.Spec.Tasks[taskid].Command.Script != "" {
+		output, err = execScript(wf.Spec.Tasks[taskid].Command.Script)
+	} else {
+		output, err = exec.Command(wf.Spec.Tasks[taskid].Command.Inline.Command, wf.Spec.Tasks[taskid].Command.Inline.Args...).Output()
+	}
+
+	//command := getCmd(wf.Spec.Tasks[taskid].Command)
+	//args := getArgs(wf.Spec.Tasks[taskid].Command, wf.Spec.Tasks[taskid].Args)
+	//c := exec.Command(command, args...)
 
 	var st string
 	wf.Kind = "Workflow"
 	wf.APIVersion = "trinity.cloudlego.com/v1"
 
 	var e string
-	output, err := c.Output()
+	//output, err := c.Output()
 	if err != nil {
 		st = "failed"
 		e = err.Error()
@@ -63,12 +65,10 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	}
 
 	taskstatus := wfv1.TaskStatus{
-		Name:    wf.Spec.Tasks[taskid].Name,
-		Command: command,
-		Args:    args,
-		Status:  st,
-		Output:  string(output),
-		Error:   e,
+		Name:   wf.Spec.Tasks[taskid].Name,
+		Status: st,
+		Output: string(output),
+		Error:  e,
 	}
 
 	if taskid == len(wf.Spec.Tasks)-1 {
@@ -84,4 +84,13 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 
 	logrus.Infof("updated status for workflow %s in namespace %s", workflow, namespace)
 
+}
+
+func execScript(script string) ([]byte, error) {
+	err := ioutil.WriteFile("./workflow.sh", []byte(script), 0777)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command("./workflow.sh")
+	return cmd.Output()
 }
