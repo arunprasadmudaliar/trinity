@@ -12,4 +12,4 @@ spec:
         args: ["-a"]
   - name: task2   
     command:
-      script: "#!/bin/bash\n uname -a"
+      script: "#!/bin/bash\n echo $WF_INPUT\n echo 'Output from previous task'"

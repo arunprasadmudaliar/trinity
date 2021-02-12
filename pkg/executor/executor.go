@@ -2,6 +2,7 @@ package executor
 
 import (
 	"io/ioutil"
+	"os"
 	"os/exec"
 
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
@@ -36,6 +37,16 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	wf, err := kc.WorkFlows(namespace).Get(workflow)
 	if err != nil {
 		logrus.WithError(err).Errorf("Failed to get workflow %s", workflow)
+	}
+
+	//Inject input variable
+	if taskid > 0 {
+		err := inputVar(wf.Status.Runs[runid].Tasks[taskid-1].Output)
+		if err != nil {
+			logrus.WithError(err).Errorf("Failed to inject input for task %d", taskid)
+		}
+	} else {
+		logrus.Info("No need to inject input since this is first task", taskid)
 	}
 
 	var output []byte
@@ -84,6 +95,10 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 
 	logrus.Infof("updated status for workflow %s in namespace %s", workflow, namespace)
 
+}
+
+func inputVar(input string) error {
+	return os.Setenv("WF_INPUT", input)
 }
 
 func execScript(script string) ([]byte, error) {
