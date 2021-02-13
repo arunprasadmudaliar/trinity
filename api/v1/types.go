@@ -6,8 +6,9 @@ import (
 
 // WorkflowSpec defines the desired state of Workflow
 type WorkflowSpec struct {
-	Schedule string         `json:"schedule"`
-	Tasks    []Workflowtask `json:"tasks"`
+	Schedule       string         `json:"schedule"`
+	StoreArtifacts bool           `json:"storeartifacts"`
+	Tasks          []Workflowtask `json:"tasks"`
 }
 
 type Workflowtask struct {

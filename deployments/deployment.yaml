@@ -4,8 +4,8 @@ metadata:
   name: trinity-service-role
   #namespace: default
 rules:
-- apiGroups: ["trinity.cloudlego.com","batch"] # "" indicates the core API group
-  resources: ["workflows","workflows/status","cronjobs","jobs"]
+- apiGroups: ["trinity.cloudlego.com","batch",""] # "" indicates the core API group
+  resources: ["workflows","workflows/status","cronjobs","jobs","pods","services"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

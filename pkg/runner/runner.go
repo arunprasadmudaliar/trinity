@@ -7,6 +7,7 @@ import (
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
 	"github.com/arunprasadmudaliar/trinity/pkg/utils"
 	batchv1 "k8s.io/api/batch/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -92,7 +93,21 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 		logrus.Error(err)
 	}
 
+	var minio *v1.Pod
+	var svc *v1.Service
+	var artifactEnabled bool
+	//deploy minio to store artifacts
+	if workflow.Spec.StoreArtifacts {
+		minio, svc, err = utils.DeployMinio(kc, name, namespace)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to initialize artifact storage")
+		}
+		artifactEnabled = true
+		logrus.Info("artifact storage is up and running")
+	}
+
 	for taskid, task := range workflow.Spec.Tasks {
+
 		//image := getImage((task.Command))
 		_, err := utils.CreateJob(kc, name, namespace, IMAGE, runid, strconv.Itoa(taskid))
 
@@ -131,6 +146,15 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 				logrus.Infof("waiting for task %s to complete", task.Name)
 			}
 		}
+	}
+
+	//Perform cleanup of artifactory storage
+	if artifactEnabled {
+		err := utils.DeleteMinio(kc, minio, svc)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to delete artifact storage")
+		}
+		logrus.Info("artifact storage was cleaned up successfully")
 	}
 }
 

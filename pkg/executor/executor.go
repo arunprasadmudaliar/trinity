@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
+	"github.com/arunprasadmudaliar/trinity/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -15,6 +16,8 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 
 	var cfg *rest.Config
 	var err error
+	storageendpoint := workflow + "-artifact-svc." + namespace + ".svc.cluster.local"
+
 	if config == "" {
 		cfg, err = rest.InClusterConfig()
 		if err != nil {
@@ -46,7 +49,18 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 			logrus.WithError(err).Errorf("Failed to inject input for task %d", taskid)
 		}
 	} else {
-		logrus.Info("No need to inject input since this is first task", taskid)
+		logrus.Info("No need to inject input since this is first task")
+	}
+
+	//Download artifacts
+	if taskid > 0 {
+		err = utils.DownloadArtifacts(workflow, storageendpoint)
+		if err != nil {
+			logrus.WithError(err).Info("failed to download artifacts")
+		}
+		logrus.Info("artifacts were downloaded successfully")
+	} else {
+		logrus.Info("No need to download artifacts since this is the first task")
 	}
 
 	var output []byte
@@ -73,6 +87,23 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	} else {
 		st = "success"
 		e = ""
+	}
+
+	//upload artifacts. Skip for the last task.
+	if taskid != len(wf.Spec.Tasks)-1 {
+		artifacts := utils.ReadArtifactsFolder("outgoing")
+		if len(artifacts) > 0 {
+
+			err := utils.UploadArtifacts(workflow, storageendpoint, artifacts)
+			if err != nil {
+				logrus.WithError(err).Errorf("failed to upload artifacts")
+			}
+			logrus.Info("artifacts were uploaded successfully")
+		} else {
+			logrus.Info("no artifacts to upload")
+		}
+	} else {
+		logrus.Info("skipping artifacts upload since this is the last task")
 	}
 
 	taskstatus := wfv1.TaskStatus{

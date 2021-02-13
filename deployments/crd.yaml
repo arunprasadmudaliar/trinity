@@ -24,6 +24,9 @@ spec:
                   type: string
                   pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'
                   default: '*/5 * * * *'
+                storeartifacts:
+                  type: bool
+                  default: false
                 tasks:
                   type: array
                   items: 
