@@ -9,6 +9,8 @@
     A Task is an individual step within a workflow that will be executed in a separate pod. It also has access to the outputs of the previous task. If the task generates an artifact ,say .zip file, it is possible to use this artifact in other tasks of the same workflow.
 
     You can run a single inline command in a task or execute a shell script. Output of command execution and the status of the task (failed or success) is captured as a part of Workflow execution.
+3. **Run**
+    The execution status of a Workflow and its tasks are updated under status field of the Workflow. An execution of a Workflow is called as a **RUN**.
 
 3. **Operator**
     This is a custom controller that keeps track of all the workflows that are getting created, updated and deleted and updates the state in Kubernetes objects like CronJobs. For instance when you create a workflow, operator will automatically create a cronjob and schedule it to run based on the schedule that was mentioned in the Workflow.
@@ -51,10 +53,37 @@ Check out the example **deployment/usingartifactstore.yaml**
 
 Note: Artifact download for first task and upload for last task will be automatically skipped.
 
-## Inputs to Task
+## Accessing output of previous task
 In the current task,you can access the output of previous task using the environment variable **WF_INPUT**.
 
 Check out the example **deployment/usinginputvar.yaml**
+
+## Track the execution status of Workflow and its tasks
+The status of a Workflow is available under the status field on the workflow. You can use ```kubectl describe workflow <workflow-name>``` or ```kubectl get workflow <workflow-name> -o json``` to view the results of the execution. Workflow will maintain the results of all the executions so far as **RUNS**.
+```
+"status": {
+                "runs": [
+                    {
+                        "ended_at": "02-14-2021 10:42:21",
+                        "id": 1,
+                        "phase": "completed",
+                        "started_at": "02-14-2021 10:42:08",
+                        "tasks": [
+                            {
+                                "error": "",
+                                "name": "task1",
+                                "output": "",
+                                "status": "success"
+                            },
+                            {
+                                "error": "",
+                                "name": "task2",
+                                "output": "Hello\n",
+                                "status": "success"
+                            }
+                        ]
+                    },
+```
 
 ## Features I am working on
 1. Option to use a user specified image for running tasks.
