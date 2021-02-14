@@ -31,9 +31,11 @@ type WorkflowStatus struct {
 }
 
 type Workflowruns struct {
-	ID    int          `json:"id"`
-	Phase string       `json:"phase"`
-	Tasks []TaskStatus `json:"tasks"`
+	ID        int          `json:"id"`
+	Phase     string       `json:"phase"`
+	StartedAt string       `json:"started_at"`
+	EndedAt   string       `json:"ended_at"`
+	Tasks     []TaskStatus `json:"tasks"`
 }
 
 type TaskStatus struct {
@@ -59,6 +61,12 @@ type WorkflowList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 	Items           []Workflow `json:"items"`
+}
+
+//Artifact store credentials
+type MinioCreds struct {
+	AccessKey string `json:"accesskey"`
+	SecretKey string `json:"secretkey"`
 }
 
 func init() {

@@ -21,46 +21,50 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	if config == "" {
 		cfg, err = rest.InClusterConfig()
 		if err != nil {
-			logrus.Fatalf("Error occured while reading incluster kubeconfig:%v", err)
+			logrus.Fatalf("error occured while reading incluster kubeconfig:%v", err)
 			//return nil, err
 		}
 	} else {
 		cfg, err = clientcmd.BuildConfigFromFlags("", config)
 		if err != nil {
-			logrus.WithError(err).Fatal("Failed to build workflow client configuration")
+			logrus.WithError(err).Fatal("failed to build workflow client configuration")
 		}
 	}
 
 	kc, err := wfv1.NewForConfig(cfg)
 	if err != nil {
-		logrus.WithError(err).Fatal("Failed to create workflow client for given configuration")
+		logrus.WithError(err).Fatal("failed to create workflow client for given configuration")
 	}
 
 	//result := wfv1.Workflow{}
 	wf, err := kc.WorkFlows(namespace).Get(workflow)
 	if err != nil {
-		logrus.WithError(err).Errorf("Failed to get workflow %s", workflow)
+		logrus.WithError(err).Errorf("failed to get workflow %s", workflow)
 	}
 
 	//Inject input variable
 	if taskid > 0 {
 		err := inputVar(wf.Status.Runs[runid].Tasks[taskid-1].Output)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to inject input for task %d", taskid)
+			logrus.WithError(err).Errorf("failed to inject input for task %d", taskid)
 		}
 	} else {
-		logrus.Info("No need to inject input since this is first task")
+		logrus.Info("no need to inject input since this is first task")
 	}
 
-	//Download artifacts
-	if taskid > 0 {
-		err = utils.DownloadArtifacts(workflow, storageendpoint)
-		if err != nil {
-			logrus.WithError(err).Info("failed to download artifacts")
+	//Check if artifact store is used.If yes, download artifacts
+	if os.Getenv("MINIO_ROOT_USER") != "" {
+		if taskid > 0 {
+			err = utils.DownloadArtifacts(workflow, storageendpoint)
+			if err != nil {
+				logrus.WithError(err).Info("failed to download artifacts")
+			}
+			logrus.Info("artifacts were downloaded successfully")
+		} else {
+			logrus.Info("no need to download artifacts since this is the first task")
 		}
-		logrus.Info("artifacts were downloaded successfully")
 	} else {
-		logrus.Info("No need to download artifacts since this is the first task")
+		logrus.Info("skipping artifact download since artifact store is not used")
 	}
 
 	var output []byte
@@ -89,21 +93,25 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 		e = ""
 	}
 
-	//upload artifacts. Skip for the last task.
-	if taskid != len(wf.Spec.Tasks)-1 {
-		artifacts := utils.ReadArtifactsFolder("outgoing")
-		if len(artifacts) > 0 {
+	//upload artifacts if artifact store is enabled. Skip for the last task.
+	if os.Getenv("MINIO_ROOT_USER") != "" {
+		if taskid != len(wf.Spec.Tasks)-1 {
+			artifacts := utils.ReadArtifactsFolder("outgoing")
+			if len(artifacts) > 0 {
 
-			err := utils.UploadArtifacts(workflow, storageendpoint, artifacts)
-			if err != nil {
-				logrus.WithError(err).Errorf("failed to upload artifacts")
+				err := utils.UploadArtifacts(workflow, storageendpoint, artifacts)
+				if err != nil {
+					logrus.WithError(err).Errorf("failed to upload artifacts")
+				}
+				logrus.Info("artifacts were uploaded successfully")
+			} else {
+				logrus.Info("no artifacts to upload")
 			}
-			logrus.Info("artifacts were uploaded successfully")
 		} else {
-			logrus.Info("no artifacts to upload")
+			logrus.Info("skipping artifacts upload since this is the last task")
 		}
 	} else {
-		logrus.Info("skipping artifacts upload since this is the last task")
+		logrus.Info("skipping artifact upload since artifact store is not used")
 	}
 
 	taskstatus := wfv1.TaskStatus{
@@ -115,6 +123,7 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 
 	if taskid == len(wf.Spec.Tasks)-1 {
 		wf.Status.Runs[runid].Phase = "completed"
+		wf.Status.Runs[runid].EndedAt = utils.Timestamp()
 	}
 
 	wf.Status.Runs[runid].Tasks = append(wf.Status.Runs[runid].Tasks, taskstatus)

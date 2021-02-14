@@ -45,9 +45,11 @@ func initialRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow
 	init := wfv1.WorkflowStatus{
 		Runs: []wfv1.Workflowruns{
 			{
-				ID:    1,
-				Phase: "Running",
-				Tasks: []wfv1.TaskStatus{},
+				ID:        1,
+				Phase:     "Running",
+				Tasks:     []wfv1.TaskStatus{},
+				StartedAt: utils.Timestamp(),
+				EndedAt:   "",
 			},
 		},
 	}
@@ -69,9 +71,11 @@ func nextRun(kc *wfv1.WorkFlowClient, name string, namespace string, workflow *w
 	runid := len(workflow.Status.Runs)
 
 	runstatus := wfv1.Workflowruns{
-		ID:    runid + 1,
-		Phase: "running",
-		Tasks: []wfv1.TaskStatus{},
+		ID:        runid + 1,
+		Phase:     "running",
+		Tasks:     []wfv1.TaskStatus{},
+		StartedAt: utils.Timestamp(),
+		EndedAt:   "",
 	}
 
 	workflow.Status.Runs = append(workflow.Status.Runs, runstatus)
@@ -96,20 +100,28 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 	var minio *v1.Pod
 	var svc *v1.Service
 	var artifactEnabled bool
+	var creds wfv1.MinioCreds
 	//deploy minio to store artifacts
 	if workflow.Spec.StoreArtifacts {
-		minio, svc, err = utils.DeployMinio(kc, name, namespace)
-		if err != nil {
-			logrus.WithError(err).Errorf("failed to initialize artifact storage")
-		}
 		artifactEnabled = true
-		logrus.Info("artifact storage is up and running")
+
+		creds = wfv1.MinioCreds{
+			AccessKey: utils.MinioCredential(),
+			SecretKey: utils.MinioCredential(),
+		}
+
+		minio, svc, err = utils.DeployMinio(kc, name, namespace, creds)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to initialize artifact store")
+		}
+
+		logrus.Info("artifact store is up and running")
 	}
 
 	for taskid, task := range workflow.Spec.Tasks {
 
 		//image := getImage((task.Command))
-		_, err := utils.CreateJob(kc, name, namespace, IMAGE, runid, strconv.Itoa(taskid))
+		job, err := utils.CreateJob(kc, name, namespace, IMAGE, runid, strconv.Itoa(taskid), creds)
 
 		if err != nil {
 			logrus.Error(err)
@@ -129,19 +141,16 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 				if len(object.Status.Conditions) > 0 {
 					if object.Status.Conditions[0].Type == "Complete" {
 						logrus.Infof("completed task %s for workflow %s", task.Name, name)
-						removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
+						//removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
+						removeJob(kc, job)
 					} else {
 						newerr := errors.New(object.Status.Conditions[0].Message)
 						logrus.WithError(newerr).Errorf("failed to execute task %s", name)
-						removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
+						//removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
+						removeJob(kc, job)
 					}
 					break
-				} /* else {
-					logrus.Errorf("failed to execute task %s", name)
-					removeJob(kc, name+"-task-"+strconv.Itoa(taskid), namespace)
-					break
-				} */
-
+				}
 			} else if event.Type == watch.Added {
 				logrus.Infof("waiting for task %s to complete", task.Name)
 			}
@@ -152,17 +161,22 @@ func deployJob(cfg string, name string, namespace string, workflow *wfv1.Workflo
 	if artifactEnabled {
 		err := utils.DeleteMinio(kc, minio, svc)
 		if err != nil {
-			logrus.WithError(err).Errorf("failed to delete artifact storage")
+			logrus.WithError(err).Errorf("failed to delete artifact store")
 		}
-		logrus.Info("artifact storage was cleaned up successfully")
+		logrus.Info("artifact store was removed successfully")
 	}
 }
 
-func removeJob(kc *kubernetes.Clientset, name string, namespace string) {
-	err := utils.DeleteJob(kc, name, namespace)
+//func removeJob(kc *kubernetes.Clientset, name string, namespace string) {
+func removeJob(kc *kubernetes.Clientset, job *batchv1.Job) {
+	err := utils.DeleteJob(kc, job.ObjectMeta.Name, job.ObjectMeta.Namespace)
 	if err != nil {
-		logrus.WithError(err).Errorf("failed to remove task %s", name)
-	} else {
-		logrus.Infof("removed task %s", name)
+		logrus.WithError(err).Errorf("failed to remove job %s.Manual clean up required before next run.", job.ObjectMeta.Name)
 	}
+	err = utils.DeleteJobPod(kc, job.ObjectMeta.Name, job.ObjectMeta.Namespace)
+	if err != nil {
+		logrus.WithError(err).Errorf("failed to remove pod for job %s.Manual clean up required before next run.", job.ObjectMeta.Name)
+	}
+
+	logrus.Info("jobs and corresponding pods were removed successfully")
 }

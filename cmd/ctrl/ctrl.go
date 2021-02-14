@@ -10,7 +10,7 @@ var kubeconfig string
 //Cmd for version number
 var Cmd = &cobra.Command{
 	Use:   "ctrl",
-	Short: "starts an instance of trinity controller",
+	Short: "starts the controller",
 	Long:  ``,
 	//Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {

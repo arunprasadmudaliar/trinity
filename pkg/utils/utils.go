@@ -4,15 +4,17 @@ import (
 	"context"
 	"io/ioutil"
 	"log"
+	"math/rand"
+	"os"
+	"time"
 
+	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
-	batch "k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -106,6 +108,24 @@ func CreatePod(kc *kubernetes.Clientset, name string, namespace string, image st
 	return pod, nil
 }
 
+func DeleteJobPod(kc *kubernetes.Clientset, name string, namespace string) error {
+	pods, err := kc.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: "job-name=" + name,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		err := kc.CoreV1().Pods(namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func WatchPod(kc *kubernetes.Clientset, name string, namespace string) (watch.Interface, error) {
 	opts := metav1.ListOptions{
 		FieldSelector: "metadata.name=" + name,
@@ -113,8 +133,8 @@ func WatchPod(kc *kubernetes.Clientset, name string, namespace string) (watch.In
 	return kc.CoreV1().Pods(namespace).Watch(context.Background(), opts)
 }
 
-func CreateJob(kc *kubernetes.Clientset, name string, namespace string, image string, runid string, taskid string) (*batchv1.Job, error) {
-	jobspec := jobSpec(name, namespace, image, runid, taskid)
+func CreateJob(kc *kubernetes.Clientset, name string, namespace string, image string, runid string, taskid string, creds wfv1.MinioCreds) (*batchv1.Job, error) {
+	jobspec := jobSpec(name, namespace, image, runid, taskid, creds)
 	job, err := kc.BatchV1().Jobs(namespace).Create(context.Background(), jobspec, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
@@ -131,11 +151,12 @@ func WatchJob(kc *kubernetes.Clientset, name string, namespace string) (watch.In
 	opts := metav1.ListOptions{
 		FieldSelector: "metadata.name=" + name,
 	}
+
 	return kc.BatchV1().Jobs(namespace).Watch(context.Background(), opts)
 }
 
-func DeployMinio(kc *kubernetes.Clientset, name string, namespace string) (*v1.Pod, *v1.Service, error) {
-	podspec := minioPodSpec(name, namespace)
+func DeployMinio(kc *kubernetes.Clientset, name string, namespace string, creds wfv1.MinioCreds) (*v1.Pod, *v1.Service, error) {
+	podspec := minioPodSpec(name, namespace, creds)
 	svcspec := minioSvcSpec(name, namespace)
 	pod, err := kc.CoreV1().Pods(namespace).Create(context.Background(), podspec, metav1.CreateOptions{})
 	if err != nil {
@@ -161,12 +182,23 @@ func DeleteMinio(kc *kubernetes.Clientset, pod *v1.Pod, svc *v1.Service) error {
 	return nil
 }
 
+func MinioCredential() string {
+	rand.Seed(time.Now().UnixNano())
+
+	letterRunes := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_@#&12345")
+	b := make([]rune, 20)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
 func UploadArtifacts(bucket string, url string, artifacts []string) error {
 
 	ctx := context.Background()
 	endpoint := url
-	accessKeyID := "minioadmin"
-	secretAccessKey := "minioadmin"
+	accessKeyID := os.Getenv("MINIO_ROOT_USER")
+	secretAccessKey := os.Getenv("MINIO_ROOT_PASSWORD")
 	useSSL := false
 
 	// Initialize minio client object.
@@ -187,6 +219,7 @@ func UploadArtifacts(bucket string, url string, artifacts []string) error {
 		_, err := mc.FPutObject(ctx, bucket, artifact, "/artifacts/outgoing/"+artifact, minio.PutObjectOptions{})
 		if err != nil {
 			logrus.WithError(err).Errorf("Failed to upload artifact %s", artifact)
+			return err
 		}
 
 	}
@@ -196,8 +229,8 @@ func UploadArtifacts(bucket string, url string, artifacts []string) error {
 
 func DownloadArtifacts(bucket string, url string) error {
 	endpoint := url
-	accessKeyID := "minioadmin"
-	secretAccessKey := "minioadmin"
+	accessKeyID := os.Getenv("MINIO_ROOT_USER")
+	secretAccessKey := os.Getenv("MINIO_ROOT_PASSWORD")
 	useSSL := false
 
 	// Initialize minio client object.
@@ -219,10 +252,10 @@ func DownloadArtifacts(bucket string, url string) error {
 			return err
 		}
 
-		err = mc.FGetObject(context.Background(), bucket, object.Key, "/artifacts/incoming/", minio.GetObjectOptions{})
+		err = mc.FGetObject(context.Background(), bucket, object.Key, "/artifacts/incoming/"+object.Key, minio.GetObjectOptions{})
 		if err != nil {
 			logrus.WithError(err).Errorf("failed to download artifact %s", object.Key)
-			//return err
+			return err
 		}
 	}
 	return nil
@@ -243,146 +276,7 @@ func ReadArtifactsFolder(dir string) []string {
 	return artifacts
 }
 
-func cronJobSpec(name string, namespace string, schedule string) *batch.CronJob {
-	var zero *int32
-	zero = new(int32)
-	*zero = 0
-	return &batch.CronJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "wf-cron-" + name,
-			Namespace: namespace,
-		},
-		Spec: batch.CronJobSpec{
-			Schedule:                   schedule,
-			FailedJobsHistoryLimit:     zero,
-			SuccessfulJobsHistoryLimit: zero,
-			JobTemplate: batch.JobTemplateSpec{
-				Spec: batchv1.JobSpec{
-					Template: v1.PodTemplateSpec{
-						Spec: v1.PodSpec{
-							Containers: []v1.Container{
-								{
-									Name:            name,
-									Image:           "arunmudaliar/trinity:latest",
-									ImagePullPolicy: "Always",
-									Command:         []string{"trinity"},
-									Args: []string{
-										"run",
-										"-w", name,
-										"-n", namespace,
-									},
-								},
-							},
-							RestartPolicy: "Never",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func podSpec(name string, namespace string, image string) *v1.Pod {
-	return &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				"workflow": name,
-			},
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:    "exec",
-					Image:   image,
-					Command: []string{"date"},
-				},
-			},
-			RestartPolicy: "Never",
-		},
-	}
-}
-
-func jobSpec(name string, namespace string, image string, runid string, taskid string) *batchv1.Job {
-	var ttl *int32
-	ttl = new(int32)
-	*ttl = 5
-	return &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name + "-task-" + taskid,
-			Namespace: namespace,
-		},
-		Spec: batchv1.JobSpec{
-			//TTLSecondsAfterFinished: ttl,
-			Template: v1.PodTemplateSpec{
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:            name,
-							Image:           image,
-							ImagePullPolicy: "Always",
-							Command:         []string{"trinity"},
-							Args: []string{
-								"exec",
-								"-w", name,
-								"-n", namespace,
-								"-r", runid,
-								"-t", taskid,
-							},
-						},
-					},
-					RestartPolicy: "Never",
-				},
-			},
-		},
-	}
-
-}
-
-func minioPodSpec(name string, namespace string) *v1.Pod {
-	return &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name + "-artifact",
-			Namespace: namespace,
-			Labels: map[string]string{
-				"workflow": name,
-				"type":     "artifact",
-			},
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:    "minio",
-					Image:   "minio/minio",
-					Command: []string{"minio"},
-					Args:    []string{"server", "/data"},
-					Ports:   []v1.ContainerPort{{ContainerPort: 9000}},
-				},
-			},
-			RestartPolicy: "Never",
-		},
-	}
-}
-
-func minioSvcSpec(name string, namespace string) *v1.Service {
-	return &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name + "-artifact-svc",
-			Namespace: namespace,
-			Labels: map[string]string{
-				"workflow": name,
-				"type":     "artifact",
-			},
-		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
-				{Port: 80, TargetPort: intstr.Parse("9000")},
-			},
-			Selector: map[string]string{
-				"workflow": name,
-				"type":     "artifact",
-			},
-		},
-	}
+func Timestamp() string {
+	dt := time.Now()
+	return dt.Format("01-02-2006 15:04:05")
 }
