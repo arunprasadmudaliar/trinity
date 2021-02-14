@@ -1,17 +1,12 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
-metadata:
-  # name must match the spec fields below, and be in the form: <plural>.<group>
+metadata: 
   name: workflows.trinity.cloudlego.com
 spec:
-  # group name to use for REST API: /apis/<group>/<version>
-  group: trinity.cloudlego.com
-  # list of versions supported by this CustomResourceDefinition
+  group: trinity.cloudlego.com  
   versions:
-    - name: v1
-      # Each version can be enabled/disabled by Served flag.
-      served: true
-      # One and only one version must be marked as the storage version.
+    - name: v1     
+      served: true     
       storage: true
       schema:
         openAPIV3Schema:
@@ -25,7 +20,7 @@ spec:
                   pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'
                   default: '*/5 * * * *'
                 storeartifacts:
-                  type: bool
+                  type: boolean
                   default: false
                 tasks:
                   type: array
@@ -36,13 +31,19 @@ spec:
                         type: string
                         pattern: '^[a-zA-Z0-9]*$'
                       command:
-                        type: string
-                        pattern: '^(bash|git|aws|az)$'
-                        default: 'bash'
-                      args:
-                        type: array                       
-                        items:
-                          type: string
+                        type: object
+                        properties:
+                          inline:
+                            type: object
+                            properties:
+                              command:
+                                type: string           
+                              args:
+                                type: array                       
+                                items:
+                                  type: string
+                          script:
+                            type: string
             status:
               type: object
               properties:
@@ -54,6 +55,10 @@ spec:
                       id:
                         type: integer
                       phase:
+                        type: string
+                      started_at:
+                        type: string
+                      ended_at:
                         type: string
                       tasks:
                         type: array
@@ -70,18 +75,12 @@ spec:
                               type: string
                             error:
                               type: string
-      subresources:
-        # status enables the status subresource.
-        status: {}                        
-  # either Namespaced or Cluster
+      subresources:     
+        status: {}        
   scope: Namespaced
-  names:
-    # plural name to be used in the URL: /apis/<group>/<version>/<plural>
-    plural: workflows
-    # singular name to be used as an alias on the CLI and for display
-    singular: workflow
-    # kind is normally the CamelCased singular type. Your resource manifests use this.
-    kind: WorkFlow
-    # shortNames allow shorter string to match your resource on the CLI
+  names:  
+    plural: workflows    
+    singular: workflow   
+    kind: WorkFlow  
     shortNames:
     - wf
