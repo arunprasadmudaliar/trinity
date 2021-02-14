@@ -8,6 +8,9 @@ spec:
   tasks:
   - name: task1    
     command:
+      inline:
+        command: "ls"
+        args: ["-a"]
       script: "#!/bin/bash\n touch /artifacts/outgoing/log.txt\n echo 'Hello'>>/artifacts/outgoing/log.txt"     
   - name: task2   
     command:
