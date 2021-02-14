@@ -11,7 +11,7 @@
     You can run a single inline command in a task or execute a shell script. Output of command execution and the status of the task (failed or success) is captured as a part of Workflow execution.
 
 3. **Operator**
-    This is a custom controller that keeps track of all the workflows that are getting created, updated and deleted and updates the state in Kubernetes objects like CronJobs. Workflow relies on Kubernetes CronJobs.
+    This is a custom controller that keeps track of all the workflows that are getting created, updated and deleted and updates the state in Kubernetes objects like CronJobs. For instance when you create a workflow, operator will automatically create a cronjob and schedule it to run based on the schedule that was mentioned in the Workflow.
 
 ## Installation
 1. Deploy the custom resource definition under **deployments/crd.yaml**.
@@ -55,6 +55,13 @@ Note: Artifact download for first task and upload for last task will be automati
 In the current task,you can access the output of previous task using the environment variable **WF_INPUT**.
 
 Check out the example **deployment/usinginputvar.yaml**
+
+## Features I am working on
+1. Option to to use a user specified image for running tasks.
+2. Decision tree.
+
+## License
+MIT License
 
 
 
