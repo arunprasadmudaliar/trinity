@@ -1,0 +1,15 @@
+apiVersion: "trinity.cloudlego.com/v1"  #The api group under which this object will be accessible.
+kind: WorkFlow  # Custom Resource Kind is 'Workflow'.
+metadata:
+  name: wf2 # Workflow name.
+spec:
+  schedule: "*/2 * * * *" # executes this workflow every 2 minutes. This is an usual cron syntax.
+  storeartifacts: true  # Deploys a minio storage to store artifacts.
+  tasks: #Array of tasks
+  - name: task1 #Task name. Should be unique and alphanumeric.
+    command:
+     script: "#!/bin/bash\n touch /artifacts/outgoing/log.txt\n echo 'Hello'>>/artifacts/outgoing/log.txt" # Create a dummy file log.txt under /artifacts/outgoing/ directory. 
+  - name: task2   
+    command:
+      script: "#!/bin/bash\n cat /artifacts/incoming/log.txt" #Read the content of log.txt in this task.
+                                                              

@@ -57,7 +57,7 @@ In the current task,you can access the output of previous task using the environ
 Check out the example **deployment/usinginputvar.yaml**
 
 ## Features I am working on
-1. Option to to use a user specified image for running tasks.
+1. Option to use a user specified image for running tasks.
 2. Decision tree.
 
 ## License

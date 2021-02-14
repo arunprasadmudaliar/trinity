@@ -1,0 +1,16 @@
+apiVersion: "trinity.cloudlego.com/v1"  #The api group under which this object will be accessible.
+kind: WorkFlow  # Custom Resource Kind is 'Workflow'.
+metadata:
+  name: wf1 # Workflow name.
+spec:
+  schedule: "*/2 * * * *" # executes this workflow every 2 minutes. This is an usual cron syntax.
+  tasks: #Array of tasks
+  - name: task1 #Task name. Should be unique and alphanumeric.
+    command:
+      inline: #Inline command. Accepts a unix command as a string and optinally array of args for this command.
+        command: "uname" 
+        args: ["-a"]        
+  - name: task2   
+    command:
+      script: "#!/bin/bash\n echo 'Hello World'" #Script command. A multiline shell script.Dont forget to mention #!/bin/bash
+                                                              
