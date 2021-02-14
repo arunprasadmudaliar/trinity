@@ -59,7 +59,7 @@ In the current task,you can access the output of previous task using the environ
 Check out the example **examples/usinginputvar.yaml**
 
 ## Track the execution status of Workflow and its tasks
-The status of a Workflow is available under the status field of the workflow. You can use ```kubectl describe workflow <workflow-name>``` or ```kubectl get workflow <workflow-name> -o json``` to view the results of the execution. Workflow will maintain the results of all the executions so far as **RUNS**.
+The status of a Workflow is available under the status field of the workflow. You can use ```kubectl describe workflow <workflow-name>``` or ```kubectl get workflow <workflow-name> -o json``` to view the results of the execution. Workflow will maintain the results of all the executions under **RUNS**.
 ```
 "status": {
                 "runs": [
