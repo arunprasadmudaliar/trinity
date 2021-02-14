@@ -18,7 +18,7 @@
 ## Installation
 1. Deploy the custom resource definition under **deployments/crd.yaml**.
 2. Next deploy the **deployments/deployment.yaml** manifest. This will deploy a *clusterrole*,*clusterrolebinding*,*deployment* that will run a workflow controller. Make sure that the kubeconfig has sufficient permission to deploy these objects.
-3. Now, you can start deploying your workflows. To begin with use the sample workflow available under **deployments/sample.yaml**.
+3. Now, you can start deploying your workflows. To begin with use the sample workflow available under **examples/basic.yaml**.
 
 ## Inline vs Script
 1. Inline accepts a command as string and an optional array of arguments for this command.
@@ -47,16 +47,16 @@ spec:
 ```
 To store an artifact, move it to /artifacts/outgoing directory. Workflow will automatically scan for files under this directory for each task and upload the files to store. Similary if you want to use an artifact in other task, you can pick it up from /artifacts/incoming directory.
 
-Workflow uses minio as an object storage. If storeartifacts is set to true, workflow will deploy minio and will use it to upload and download artifacts. This storage is available only during the execution of a workflow and will be removed once the workflow completes.
+Workflow uses minio as an object storage. If *storeartifacts* is set to *true*, workflow will deploy minio and will use it to upload and download artifacts. This storage is available only during the execution of a workflow and will be removed once the workflow completes.
 
-Check out the example **deployment/usingartifactstore.yaml**
+Check out the example **examples/usingartifactstore.yaml**
 
 Note: Artifact download for first task and upload for last task will be automatically skipped.
 
 ## Accessing output of previous task
 In the current task,you can access the output of previous task using the environment variable **WF_INPUT**.
 
-Check out the example **deployment/usinginputvar.yaml**
+Check out the example **examples/usinginputvar.yaml**
 
 ## Track the execution status of Workflow and its tasks
 The status of a Workflow is available under the status field of the workflow. You can use ```kubectl describe workflow <workflow-name>``` or ```kubectl get workflow <workflow-name> -o json``` to view the results of the execution. Workflow will maintain the results of all the executions so far as **RUNS**.
@@ -88,6 +88,9 @@ The status of a Workflow is available under the status field of the workflow. Yo
 ## Features I am working on
 1. Option to use a user specified image for running tasks.
 2. Decision tree.
+
+## Contribution
+A contribution to this project is welcome through a pull request. Moreover, I am not a full time golang developer and hence the code base might not be idiomatic. Any kind of help will be highly appreciated.
 
 ## License
 MIT License
