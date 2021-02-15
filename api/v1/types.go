@@ -12,8 +12,9 @@ type WorkflowSpec struct {
 }
 
 type Workflowtask struct {
-	Name string `json:"name"`
-	//Type    string   `json:"type"`
+	Name    string   `json:"name"`
+	Secrets []string `json:"secrets"`
+	EnvVars []string `json:"envvars"`
 	Command struct {
 		Inline struct {
 			Command string   `json:"command"`

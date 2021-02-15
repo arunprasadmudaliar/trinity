@@ -8,15 +8,29 @@ import (
 	wfv1 "github.com/arunprasadmudaliar/trinity/api/v1"
 	"github.com/arunprasadmudaliar/trinity/pkg/utils"
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+type phase struct {
+	kc       *kubernetes.Clientset
+	wf       *wfv1.WorkFlowClient
+	workflow *wfv1.Workflow
+	runid    int
+	taskid   int
+}
 
 func Execute(config string, workflow string, namespace string, runid int, taskid int) {
 
 	var cfg *rest.Config
 	var err error
 	storageendpoint := workflow + "-artifact-svc." + namespace + ".svc.cluster.local"
+
+	kc, err := utils.Client(config)
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create default client for given configuration")
+	}
 
 	if config == "" {
 		cfg, err = rest.InClusterConfig()
@@ -31,31 +45,79 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 		}
 	}
 
-	kc, err := wfv1.NewForConfig(cfg)
+	wc, err := wfv1.NewForConfig(cfg)
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create workflow client for given configuration")
 	}
 
 	//result := wfv1.Workflow{}
-	wf, err := kc.WorkFlows(namespace).Get(workflow)
+	wf, err := wc.WorkFlows(namespace).Get(workflow)
 	if err != nil {
 		logrus.WithError(err).Errorf("failed to get workflow %s", workflow)
 	}
 
+	phase := phase{
+		kc:       kc,
+		wf:       wc,
+		workflow: wf,
+		runid:    runid,
+		taskid:   taskid,
+	}
+
+	//Inject Input Vars
+	phase.injectInputVars()
+
+	//Download artifacts
+	phase.downloadArtifacts(storageendpoint)
+
+	//Execute commands
+	output, err := phase.execute()
+
+	//upload artifacts
+	phase.uploadArtifacts(storageendpoint)
+
+	//update status
+	phase.updateStatus(output, err)
+
+}
+
+func setEnvVar(envvar string) error {
+	return os.Setenv("WF_INPUT", envvar)
+}
+
+func execScript(script string) ([]byte, error) {
+	err := ioutil.WriteFile("./workflow.sh", []byte(script), 0777)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command("./workflow.sh")
+	return cmd.Output()
+}
+
+func (p phase) injectInputVars() {
 	//Inject input variable
-	if taskid > 0 {
-		err := inputVar(wf.Status.Runs[runid].Tasks[taskid-1].Output)
+	if p.taskid > 0 {
+		err := setEnvVar(p.workflow.Status.Runs[p.runid].Tasks[p.taskid-1].Output)
 		if err != nil {
-			logrus.WithError(err).Errorf("failed to inject input for task %d", taskid)
+			logrus.WithError(err).Errorf("failed to inject input for task %d", p.taskid)
 		}
 	} else {
 		logrus.Info("no need to inject input since this is first task")
 	}
+}
 
+func (p phase) injectSecrets() {
+	secrets := p.workflow.Spec.Tasks[p.taskid].Secrets
+	for _, secret := range secrets {
+		data, _ := utils.GetSecret(p.kc, secret, p.workflow.Namespace)
+	}
+}
+
+func (p phase) downloadArtifacts(storageendpoint string) {
 	//Check if artifact store is used.If yes, download artifacts
 	if os.Getenv("MINIO_ROOT_USER") != "" {
-		if taskid > 0 {
-			err = utils.DownloadArtifacts(workflow, storageendpoint)
+		if p.taskid > 0 {
+			err := utils.DownloadArtifacts(p.workflow.Name, storageendpoint)
 			if err != nil {
 				logrus.WithError(err).Info("failed to download artifacts")
 			}
@@ -66,40 +128,28 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	} else {
 		logrus.Info("skipping artifact download since artifact store is not used")
 	}
+}
 
+func (p phase) execute() ([]byte, error) {
 	var output []byte
+	var err error
 
-	if wf.Spec.Tasks[taskid].Command.Script != "" {
-		output, err = execScript(wf.Spec.Tasks[taskid].Command.Script)
+	if p.workflow.Spec.Tasks[p.taskid].Command.Script != "" {
+		output, err = execScript(p.workflow.Spec.Tasks[p.taskid].Command.Script)
 	} else {
-		output, err = exec.Command(wf.Spec.Tasks[taskid].Command.Inline.Command, wf.Spec.Tasks[taskid].Command.Inline.Args...).Output()
+		output, err = exec.Command(p.workflow.Spec.Tasks[p.taskid].Command.Inline.Command, p.workflow.Spec.Tasks[p.taskid].Command.Inline.Args...).Output()
 	}
+	return output, err
+}
 
-	//command := getCmd(wf.Spec.Tasks[taskid].Command)
-	//args := getArgs(wf.Spec.Tasks[taskid].Command, wf.Spec.Tasks[taskid].Args)
-	//c := exec.Command(command, args...)
-
-	var st string
-	wf.Kind = "Workflow"
-	wf.APIVersion = "trinity.cloudlego.com/v1"
-
-	var e string
-	//output, err := c.Output()
-	if err != nil {
-		st = "failed"
-		e = err.Error()
-	} else {
-		st = "success"
-		e = ""
-	}
-
+func (p phase) uploadArtifacts(storageendpoint string) {
 	//upload artifacts if artifact store is enabled. Skip for the last task.
 	if os.Getenv("MINIO_ROOT_USER") != "" {
-		if taskid != len(wf.Spec.Tasks)-1 {
+		if p.taskid != len(p.workflow.Spec.Tasks)-1 {
 			artifacts := utils.ReadArtifactsFolder("outgoing")
 			if len(artifacts) > 0 {
 
-				err := utils.UploadArtifacts(workflow, storageendpoint, artifacts)
+				err := utils.UploadArtifacts(p.workflow.Name, storageendpoint, artifacts)
 				if err != nil {
 					logrus.WithError(err).Errorf("failed to upload artifacts")
 				}
@@ -113,39 +163,41 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	} else {
 		logrus.Info("skipping artifact upload since artifact store is not used")
 	}
+}
 
+func (p phase) updateStatus(output []byte, err error) {
+	var st string
+	p.workflow.Kind = "Workflow"
+	p.workflow.APIVersion = "trinity.cloudlego.com/v1"
+
+	var e string
+	//output, err := c.Output()
+	if err != nil {
+		st = "failed"
+		e = err.Error()
+	} else {
+		st = "success"
+		e = ""
+	}
 	taskstatus := wfv1.TaskStatus{
-		Name:   wf.Spec.Tasks[taskid].Name,
+		Name:   p.workflow.Spec.Tasks[p.taskid].Name,
 		Status: st,
 		Output: string(output),
 		Error:  e,
 	}
 
-	if taskid == len(wf.Spec.Tasks)-1 {
-		wf.Status.Runs[runid].Phase = "completed"
-		wf.Status.Runs[runid].EndedAt = utils.Timestamp()
+	if p.taskid == len(p.workflow.Spec.Tasks)-1 {
+		p.workflow.Status.Runs[p.runid].Phase = "completed"
+		p.workflow.Status.Runs[p.runid].EndedAt = utils.Timestamp()
 	}
 
-	wf.Status.Runs[runid].Tasks = append(wf.Status.Runs[runid].Tasks, taskstatus)
+	p.workflow.Status.Runs[p.runid].Tasks = append(p.workflow.Status.Runs[p.runid].Tasks, taskstatus)
 
-	_, err = kc.WorkFlows(namespace).Put(workflow, wf)
+	_, err = p.wf.WorkFlows(p.workflow.Namespace).Put(p.workflow.Name, p.workflow)
 	if err != nil {
-		logrus.WithError(err).Errorf("failed to update status for workflow %s in namespace %s", workflow, namespace)
+		logrus.WithError(err).Errorf("failed to update status for workflow %s in namespace %s", p.workflow.Name, p.workflow.Namespace)
 	}
 
-	logrus.Infof("updated status for workflow %s in namespace %s", workflow, namespace)
+	logrus.Infof("updated status for workflow %s in namespace %s", p.workflow.Name, p.workflow.Namespace)
 
-}
-
-func inputVar(input string) error {
-	return os.Setenv("WF_INPUT", input)
-}
-
-func execScript(script string) ([]byte, error) {
-	err := ioutil.WriteFile("./workflow.sh", []byte(script), 0777)
-	if err != nil {
-		return nil, err
-	}
-	cmd := exec.Command("./workflow.sh")
-	return cmd.Output()
 }

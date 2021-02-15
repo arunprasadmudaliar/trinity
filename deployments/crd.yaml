@@ -30,6 +30,14 @@ spec:
                       name:
                         type: string
                         pattern: '^[a-zA-Z0-9]*$'
+                      secrets:
+                        type: array
+                        items:
+                          type: string
+                      envvars:
+                        type: array
+                        items:
+                          type: string
                       command:
                         type: object
                         properties:
