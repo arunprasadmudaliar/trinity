@@ -67,6 +67,9 @@ func Execute(config string, workflow string, namespace string, runid int, taskid
 	//Inject Input Vars
 	phase.injectInputVars()
 
+	//Inject Secret Vars
+	phase.injectSecrets()
+
 	//Download artifacts
 	phase.downloadArtifacts(storageendpoint)
 
@@ -109,7 +112,12 @@ func (p phase) injectInputVars() {
 func (p phase) injectSecrets() {
 	secrets := p.workflow.Spec.Tasks[p.taskid].Secrets
 	for _, secret := range secrets {
-		data, _ := utils.GetSecret(p.kc, secret, p.workflow.Namespace)
+		data, err := utils.GetSecret(p.kc, secret, p.workflow.Namespace)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to get secret variable %s", secret)
+		}
+		//os.Setenv("WF_SECRET_"+secret, data)
+		logrus.Info(data)
 	}
 }
 

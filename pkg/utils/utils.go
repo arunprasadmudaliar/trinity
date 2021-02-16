@@ -155,14 +155,14 @@ func WatchJob(kc *kubernetes.Clientset, name string, namespace string) (watch.In
 	return kc.BatchV1().Jobs(namespace).Watch(context.Background(), opts)
 }
 
-func GetSecret(kc *kubernetes.Clientset, name string, namespace string) (map[string][]byte, error) {
+func GetSecret(kc *kubernetes.Clientset, name string, namespace string) (map[string]string, error) {
 	secret, err := kc.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	logrus.Info(secret.Data)
+	//logrus.Info(secret.StringData)
 
-	return secret.Data, nil
+	return secret.StringData, nil
 }
 
 func DeployMinio(kc *kubernetes.Clientset, name string, namespace string, creds wfv1.MinioCreds) (*v1.Pod, *v1.Service, error) {
