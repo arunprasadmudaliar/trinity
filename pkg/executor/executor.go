@@ -112,12 +112,28 @@ func (p phase) injectInputVars() {
 func (p phase) injectSecrets() {
 	secrets := p.workflow.Spec.Tasks[p.taskid].Secrets
 	for _, secret := range secrets {
-		data, err := utils.GetSecret(p.kc, secret, p.workflow.Namespace)
+		data, secrettype, err := utils.GetSecret(p.kc, secret, p.workflow.Namespace)
 		if err != nil {
-			logrus.WithError(err).Errorf("failed to get secret variable %s", secret)
+			logrus.WithError(err).Errorf("failed to read secret variable %s", secret)
 		}
-		//os.Setenv("WF_SECRET_"+secret, data)
-		logrus.Info(data)
+
+		if secrettype == "Opaque" {
+			for key, value := range data {
+
+				if err != nil {
+					logrus.WithError(err).Errorf("failed to decode variable %s for secret %s", key, secret)
+				} else {
+					err = os.Setenv("WF_SECRET_"+secret+"_"+key, string(value))
+					if err != nil {
+						logrus.WithError(err).Errorf("failed to set variable %s for secret %s", key, secret)
+					} else {
+						logrus.Infof("injected variable %s for secret %s", key, secret)
+					}
+				}
+			}
+		} else {
+			logrus.Warnf("secret type %s is not yet supported", secrettype)
+		}
 	}
 }
 

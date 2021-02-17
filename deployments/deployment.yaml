@@ -5,7 +5,7 @@ metadata:
   #namespace: default
 rules:
 - apiGroups: ["trinity.cloudlego.com","batch",""] # "" indicates the core API group
-  resources: ["workflows","workflows/status","cronjobs","jobs","pods","services"]
+  resources: ["workflows","workflows/status","cronjobs","jobs","pods","services","secrets"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
